@@ -133,6 +133,50 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
     conn.close()
 
 
+# New: get latest evaluation id for a player
+def get_latest_evaluation_id(player_id: int):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM evaluations WHERE player_id=? ORDER BY eval_date DESC, id DESC LIMIT 1", (player_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row["id"] if row else None
+
+
+# New: update an existing evaluation (delete children and re-insert)
+def update_evaluation(evaluation_id: int, analyst: str, eval_date: str, skills: dict, mog: dict,
+                      strengths: list, improvements: list):
+    conn = get_db()
+    cur = conn.cursor()
+    # Update root evaluation
+    cur.execute("UPDATE evaluations SET analyst = ?, eval_date = ? WHERE id = ?", (analyst, eval_date, evaluation_id))
+    # Delete old child records
+    cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (evaluation_id,))
+    cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (evaluation_id,))
+    cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (evaluation_id,))
+    # Re-insert skills
+    for cat, sd in skills.items():
+        for sn, lv in sd.items():
+            if sn.strip() and lv.strip():
+                cur.execute("INSERT INTO eval_skills (evaluation_id,category,skill_name,level) VALUES (?,?,?,?)",
+                            (evaluation_id, cat, sn, lv))
+    # Re-insert mog
+    for c, v in mog.items():
+        cur.execute("INSERT INTO eval_mog (evaluation_id,category,value) VALUES (?,?,?)", (evaluation_id, c, v))
+    # Re-insert notes
+    for i, t in enumerate(strengths):
+        if t.strip():
+            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'strength',?,?)",
+                        (evaluation_id, i + 1, t))
+    for i, t in enumerate(improvements):
+        if t.strip():
+            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'improve',?,?)",
+                        (evaluation_id, i + 1, t))
+    conn.commit()
+    conn.close()
+    return evaluation_id
+
+
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     conn = get_db()
     cur = conn.cursor()
@@ -377,6 +421,7 @@ elif page == "📚 Jogadores":
 
         with col_edit:
             with st.expander("✏️ Editar jogador"):
+                # --- Player edit form (unchanged fields) ---
                 with st.form(f"form_edit_{sel_row['id']}"):
                     new_name = st.text_input("Nome completo *", value=sel_row["name"])
                     new_position = st.text_input("Posição", value=sel_row["position"] or "")
@@ -392,6 +437,139 @@ elif page == "📚 Jogadores":
                                 st.experimental_rerun()
                             except sqlite3.IntegrityError:
                                 st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
+
+                st.markdown("---")
+                # Fetch latest evaluation and ID
+                latest_eval = get_latest_evaluation(int(sel_row["id"]))
+                latest_eval_id = get_latest_evaluation_id(int(sel_row["id"]))
+
+                # --- Edit or Add Evaluation ---
+                exp_label = "✏️ Editar última avaliação" if latest_eval else "➕ Adicionar nova avaliação"
+                with st.expander(exp_label):
+                    # Unique form keys per player id to avoid collisions
+                    with st.form(f"form_edit_eval_{sel_row['id']}"):
+                        ea, eb = st.columns(2)
+                        with ea:
+                            analyst_e = st.text_input("Nome do Analista *", value=(latest_eval["analyst"] if latest_eval else ""))
+                        with eb:
+                            eval_date_val = date.fromisoformat(latest_eval["eval_date"]) if latest_eval else date.today()
+                            eval_date_e = st.date_input("Data", value=eval_date_val)
+
+                        st.divider()
+                        st.subheader("🎯 Technical")
+                        tv_e = {}
+                        tc_cols = st.columns(4)
+                        for i, s in enumerate(TECHNICAL_SKILLS):
+                            current = ""
+                            if latest_eval and latest_eval.get("skills", {}).get("technical"):
+                                current = latest_eval["skills"]["technical"].get(s, "")
+                            # Ensure a valid default; if empty choose the middle option
+                            default = current or LEVELS[2]
+                            with tc_cols[i % 4]:
+                                tv_e[s] = st.selectbox(f"t_edit_{sel_row['id']}_{s}", LEVELS, index=LEVELS.index(default))
+
+                        st.divider()
+                        st.subheader("⚡ Player-Specific Indicators")
+                        st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
+                        ps_e = {}
+                        # Prepare existing player-specific items (preserve order if possible)
+                        existing_ps = {}
+                        if latest_eval and latest_eval.get("skills", {}).get("player_specific"):
+                            existing_ps = latest_eval["skills"]["player_specific"]
+                        # Convert to list of tuples, pad to 4
+                        ps_items = list(existing_ps.items())[:4]
+                        while len(ps_items) < 4:
+                            ps_items.append(("", ""))
+                        pn_e = st.columns(4)
+                        pl_e = st.columns(4)
+                        for i in range(4):
+                            with pn_e[i]:
+                                an = st.text_input(f"psn_edit_{sel_row['id']}_{i}", value=(ps_items[i][0] or ""), placeholder="Ex: Speed")
+                            with pl_e[i]:
+                                current_level = ps_items[i][1] or ""
+                                al = st.selectbox(f"psl_edit_{sel_row['id']}_{i}", [""] + LEVELS, index=([""] + LEVELS).index(current_level) if current_level in LEVELS else 0)
+                            if an.strip() and al:
+                                ps_e[an.strip()] = al
+
+                        st.divider()
+                        st.subheader("🧠 Mental")
+                        mv_e = {}
+                        mc_e = st.columns(4)
+                        for i, s in enumerate(MENTAL_SKILLS):
+                            current = ""
+                            if latest_eval and latest_eval.get("skills", {}).get("mental"):
+                                current = latest_eval["skills"]["mental"].get(s, "")
+                            default = current or LEVELS[2]
+                            with mc_e[i % 4]:
+                                mv_e[s] = st.selectbox(f"m_edit_{sel_row['id']}_{s}", LEVELS, index=LEVELS.index(default))
+
+                        st.divider()
+                        st.subheader("📐 Moments of the Game (MoG)")
+                        mgv_e = {}
+                        mgc_e = st.columns(5)
+                        for i, c in enumerate(MOG_CATEGORIES):
+                            current = 50
+                            if latest_eval and latest_eval.get("mog"):
+                                current = latest_eval["mog"].get(c, 50)
+                            with mgc_e[i]:
+                                mgv_e[c] = st.slider(f"mog_edit_{sel_row['id']}_{c}", 0, 100, int(current))
+
+                        st.divider()
+                        col_s_e, col_i_e = st.columns(2)
+                        with col_s_e:
+                            st.subheader("💪 My Strengths")
+                            s_vals = latest_eval["strengths"] if latest_eval and latest_eval.get("strengths") else ["", "", ""]
+                            s1_e = st.text_input(f"s1_edit_{sel_row['id']}", value=s_vals[0] if len(s_vals) > 0 else "")
+                            s2_e = st.text_input(f"s2_edit_{sel_row['id']}", value=s_vals[1] if len(s_vals) > 1 else "")
+                            s3_e = st.text_input(f"s3_edit_{sel_row['id']}", value=s_vals[2] if len(s_vals) > 2 else "")
+                        with col_i_e:
+                            st.subheader("📈 Need to Improve")
+                            i_vals = latest_eval["improvements"] if latest_eval and latest_eval.get("improvements") else ["", "", ""]
+                            i1_e = st.text_input(f"i1_edit_{sel_row['id']}", value=i_vals[0] if len(i_vals) > 0 else "")
+                            i2_e = st.text_input(f"i2_edit_{sel_row['id']}", value=i_vals[1] if len(i_vals) > 1 else "")
+                            i3_e = st.text_input(f"i3_edit_{sel_row['id']}", value=i_vals[2] if len(i_vals) > 2 else "")
+
+                        st.divider()
+                        if st.form_submit_button("💾 Salvar avaliação"):
+                            if not analyst_e.strip():
+                                st.error("Nome do analista é obrigatório.")
+                            else:
+                                # Build skills dict matching save_evaluation shape
+                                skills_payload = {"technical": tv_e, "player_specific": ps_e, "mental": mv_e}
+                                mog_payload = mgv_e
+                                strengths_payload = [s1_e, s2_e, s3_e]
+                                improvements_payload = [i1_e, i2_e, i3_e]
+                                if latest_eval and latest_eval_id:
+                                    try:
+                                        update_evaluation(
+                                            evaluation_id=latest_eval_id,
+                                            analyst=analyst_e.strip(),
+                                            eval_date=eval_date_e.isoformat(),
+                                            skills=skills_payload,
+                                            mog=mog_payload,
+                                            strengths=strengths_payload,
+                                            improvements=improvements_payload,
+                                        )
+                                        st.success("✅ Avaliação atualizada com sucesso!")
+                                        st.experimental_rerun()
+                                    except Exception as ex:
+                                        st.error(f"Erro ao atualizar avaliação: {ex}")
+                                else:
+                                    # Create a new evaluation
+                                    try:
+                                        save_evaluation(
+                                            player_id=int(sel_row["id"]),
+                                            analyst=analyst_e.strip(),
+                                            eval_date=eval_date_e.isoformat(),
+                                            skills=skills_payload,
+                                            mog=mog_payload,
+                                            strengths=strengths_payload,
+                                            improvements=improvements_payload,
+                                        )
+                                        st.success("✅ Avaliação criada com sucesso!")
+                                        st.experimental_rerun()
+                                    except Exception as ex:
+                                        st.error(f"Erro ao criar avaliação: {ex}")
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
