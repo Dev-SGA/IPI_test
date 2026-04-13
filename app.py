@@ -33,6 +33,16 @@ def get_logo_base64(path: str) -> str:
 LOGO_SRC = get_logo_base64(LOGO_PATH) or LOGO_URL
 
 # ──────────────────────────────────────────────
+# TIPOGRAFIA
+# ──────────────────────────────────────────────
+# Good Times  →  Orbitron (Google Fonts, gratuita)
+# Source Sans 3   →  mantida (materiais gráficos)
+# Trebuchet MS    →  mantida (documentos)
+FONT_DISPLAY = "'Orbitron', sans-serif"          # Logo, títulos grandes
+FONT_GRAPHIC = "'Source Sans 3', sans-serif"     # Painéis, badges
+FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"  # Listas, meta
+
+# ──────────────────────────────────────────────
 # SKILLS / LEVELS
 # ──────────────────────────────────────────────
 TECHNICAL_SKILLS = [
@@ -262,14 +272,14 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
-    # ── Fontes Google: Source Sans 3 + Trebuchet MS (sistema) ──
+    # ── Google Fonts: Orbitron (display) + Source Sans 3 (graphic) ──
     st.markdown(
         f"""
-        <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
         <style>
-        /* ── Tipografia global ── */
+        /* ── Tipografia base ── */
         html, body, .stApp, .stApp * {{
-            font-family: 'Source Sans 3', 'Trebuchet MS', Trebuchet, sans-serif !important;
+            font-family: {FONT_GRAPHIC} !important;
         }}
 
         .block-container {{
@@ -277,14 +287,16 @@ else:
             padding-left: 2rem; padding-right: 2rem;
         }}
 
-        /* ── Header — fundo #67b6fb ── */
+        /* ══════════════════════════════════════════
+           HEADER — Orbitron + fundo #67b6fb
+           ══════════════════════════════════════════ */
         .header-bar {{
             background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
-            padding: 18px 36px;
+            padding: 20px 36px;
             border-radius: 12px;
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 22px;
             margin-bottom: 24px;
             box-shadow: 0 4px 20px rgba(103,182,251,0.30);
             position: relative;
@@ -311,25 +323,25 @@ else:
             position: relative;
             z-index: 1;
         }}
-        .header-bar h1 {{
-            color: #0a2a4a;
-            margin: 0;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
-            font-size: 1.7rem;
-            font-weight: 800;
-            letter-spacing: 1.5px;
+        .header-bar .brand {{
+            font-family: {FONT_DISPLAY} !important;
+            color: rgba(10,42,74,0.55);
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 4px;
             text-transform: uppercase;
         }}
-        .header-bar .brand {{
-            color: rgba(10,42,74,0.6);
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 3px;
+        .header-bar h1 {{
+            font-family: {FONT_DISPLAY} !important;
+            color: #0a2a4a;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 900;
+            letter-spacing: 2px;
             text-transform: uppercase;
         }}
 
-        /* ── Cards ── */
+        /* ── Player Card ── */
         .card {{
             background: white; border-radius: 12px; padding: 20px;
             box-shadow: 0 2px 12px rgba(13,71,161,0.12);
@@ -344,13 +356,13 @@ else:
             border-radius: 2px; margin: 10px auto;
         }}
         .player-card .label {{
+            font-family: {FONT_GRAPHIC} !important;
             font-size: 0.72rem; color: #78909C;
-            text-transform: uppercase; letter-spacing: 1.5px;
-            font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
         }}
         .player-card .value {{
-            font-size: 1.05rem; color: #0D47A1;
-            font-weight: 700; margin-bottom: 10px;
+            font-family: {FONT_GRAPHIC} !important;
+            font-size: 1.05rem; color: #0D47A1; font-weight: 700; margin-bottom: 10px;
         }}
 
         /* ── Sections ── */
@@ -361,27 +373,27 @@ else:
         .section-header {{
             background: #0D47A1; color: white;
             padding: 10px 20px;
-            font-size: 1.05rem;
+            font-family: {FONT_DISPLAY} !important;
+            font-size: 0.9rem;
             font-weight: 700;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            letter-spacing: 1px;
+            text-transform: uppercase;
         }}
-        .section-body {{
-            background: #1E88E5; padding: 14px 20px;
-        }}
+        .section-body {{ background: #1E88E5; padding: 14px 20px; }}
 
         /* ── Badge Table ── */
         .badge-table {{ width: 100%; border-collapse: collapse; table-layout: auto; }}
         .badge-table td {{ padding: 8px 8px; vertical-align: middle; }}
         .badge-table .cell-label {{
             color: white;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            font-family: {FONT_GRAPHIC} !important;
             font-size: 0.88rem; font-weight: 600;
             text-align: right; padding-right: 10px; white-space: nowrap;
         }}
         .badge-table .cell-tag {{ text-align: left; white-space: nowrap; }}
         .badge-tag {{
             display: inline-block; padding: 5px 14px; border-radius: 5px;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            font-family: {FONT_GRAPHIC} !important;
             font-size: 0.82rem; font-weight: 700; white-space: nowrap;
             min-width: 90px; text-align: center;
         }}
@@ -390,7 +402,7 @@ else:
         .text-list {{ list-style: none; padding: 0; margin: 0; }}
         .text-list li {{
             color: white;
-            font-family: 'Trebuchet MS', 'Source Sans 3', sans-serif !important;
+            font-family: {FONT_DOCUMENT} !important;
             font-size: 0.95rem; font-weight: 600; padding: 5px 0;
             border-bottom: 1px solid rgba(255,255,255,0.15);
         }}
@@ -409,8 +421,10 @@ else:
         }}
         .radar-title {{
             background: #0C1F3A; color: white; text-align: center;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
-            font-size: 1rem; font-weight: 700;
+            font-family: {FONT_DISPLAY} !important;
+            font-size: 0.85rem; font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
             padding: 14px 12px 0 12px;
         }}
         .radar-body {{ background: #0C1F3A; }}
@@ -422,14 +436,13 @@ else:
         .eval-meta {{
             background: rgba(13,71,161,0.06); border-radius: 8px;
             padding: 8px 16px; margin-top: 8px;
-            font-family: 'Trebuchet MS', 'Source Sans 3', sans-serif !important;
+            font-family: {FONT_DOCUMENT} !important;
             font-size: 0.85rem; color: #546E7A;
         }}
 
-        /* ── Streamlit overrides ── */
         div[data-testid="stSelectbox"] label {{
             font-weight: 600; color: #0D47A1;
-            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            font-family: {FONT_GRAPHIC} !important;
         }}
         </style>
         """,
@@ -494,9 +507,7 @@ else:
         )
         return fig
 
-    # ══════════════════════════════════════════
-    # HEADER COM LOGO + COR #67b6fb
-    # ══════════════════════════════════════════
+    # ── HEADER ──
     st.markdown(
         f"""
         <div class="header-bar">
