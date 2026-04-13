@@ -443,18 +443,18 @@ elif page == "📚 Jogadores":
                 latest_eval = get_latest_evaluation(int(sel_row["id"]))
                 latest_eval_id = get_latest_evaluation_id(int(sel_row["id"]))
 
-                # --- Edit or Add Evaluation ---
+                # --- Edit or Add Evaluation (substitua o bloco existente pelo abaixo) ---
                 exp_label = "✏️ Editar última avaliação" if latest_eval else "➕ Adicionar nova avaliação"
                 with st.expander(exp_label):
                     # Unique form keys per player id to avoid collisions
                     with st.form(f"form_edit_eval_{sel_row['id']}"):
                         ea, eb = st.columns(2)
                         with ea:
-                            analyst_e = st.text_input("Nome do Analista *", value=(latest_eval["analyst"] if latest_eval else ""))
+                            analyst_e = st.text_input("Nome do Analista *", value=(latest_eval["analyst"] if latest_eval else ""), key=f"analyst_edit_{sel_row['id']}")
                         with eb:
                             eval_date_val = date.fromisoformat(latest_eval["eval_date"]) if latest_eval else date.today()
-                            eval_date_e = st.date_input("Data", value=eval_date_val)
-
+                            eval_date_e = st.date_input("Data", value=eval_date_val, key=f"eval_date_edit_{sel_row['id']}")
+                
                         st.divider()
                         st.subheader("🎯 Technical")
                         tv_e = {}
@@ -463,20 +463,23 @@ elif page == "📚 Jogadores":
                             current = ""
                             if latest_eval and latest_eval.get("skills", {}).get("technical"):
                                 current = latest_eval["skills"]["technical"].get(s, "")
-                            # Ensure a valid default; if empty choose the middle option
-                            default = current or LEVELS[2]
+                            default = current or LEVELS[2]  # fallback
                             with tc_cols[i % 4]:
-                                tv_e[s] = st.selectbox(f"t_edit_{sel_row['id']}_{s}", LEVELS, index=LEVELS.index(default))
-
+                                # label is the skill name; key is unique (so label stays clean)
+                                tv_e[s] = st.selectbox(
+                                    s,
+                                    LEVELS,
+                                    index=LEVELS.index(default) if default in LEVELS else 0,
+                                    key=f"t_edit_{sel_row['id']}_{i}"
+                                )
+                
                         st.divider()
                         st.subheader("⚡ Player-Specific Indicators")
                         st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
                         ps_e = {}
-                        # Prepare existing player-specific items (preserve order if possible)
                         existing_ps = {}
                         if latest_eval and latest_eval.get("skills", {}).get("player_specific"):
                             existing_ps = latest_eval["skills"]["player_specific"]
-                        # Convert to list of tuples, pad to 4
                         ps_items = list(existing_ps.items())[:4]
                         while len(ps_items) < 4:
                             ps_items.append(("", ""))
@@ -484,13 +487,16 @@ elif page == "📚 Jogadores":
                         pl_e = st.columns(4)
                         for i in range(4):
                             with pn_e[i]:
-                                an = st.text_input(f"psn_edit_{sel_row['id']}_{i}", value=(ps_items[i][0] or ""), placeholder="Ex: Speed")
+                                # label shows "Atributo N", key keeps uniqueness
+                                an = st.text_input(f"Atributo {i+1}", value=(ps_items[i][0] or ""), placeholder="Ex: Speed", key=f"psn_edit_{sel_row['id']}_{i}")
                             with pl_e[i]:
                                 current_level = ps_items[i][1] or ""
-                                al = st.selectbox(f"psl_edit_{sel_row['id']}_{i}", [""] + LEVELS, index=([""] + LEVELS).index(current_level) if current_level in LEVELS else 0)
+                                options = [""] + LEVELS
+                                idx = options.index(current_level) if current_level in options else 0
+                                al = st.selectbox(f"Nível {i+1}", options, index=idx, key=f"psl_edit_{sel_row['id']}_{i}")
                             if an.strip() and al:
                                 ps_e[an.strip()] = al
-
+                
                         st.divider()
                         st.subheader("🧠 Mental")
                         mv_e = {}
@@ -501,8 +507,13 @@ elif page == "📚 Jogadores":
                                 current = latest_eval["skills"]["mental"].get(s, "")
                             default = current or LEVELS[2]
                             with mc_e[i % 4]:
-                                mv_e[s] = st.selectbox(f"m_edit_{sel_row['id']}_{s}", LEVELS, index=LEVELS.index(default))
-
+                                mv_e[s] = st.selectbox(
+                                    s,
+                                    LEVELS,
+                                    index=LEVELS.index(default) if default in LEVELS else 0,
+                                    key=f"m_edit_{sel_row['id']}_{i}"
+                                )
+                
                         st.divider()
                         st.subheader("📐 Moments of the Game (MoG)")
                         mgv_e = {}
@@ -512,29 +523,29 @@ elif page == "📚 Jogadores":
                             if latest_eval and latest_eval.get("mog"):
                                 current = latest_eval["mog"].get(c, 50)
                             with mgc_e[i]:
-                                mgv_e[c] = st.slider(f"mog_edit_{sel_row['id']}_{c}", 0, 100, int(current))
-
+                                # label is MoG category; key unique
+                                mgv_e[c] = st.slider(c, 0, 100, int(current), key=f"mog_edit_{sel_row['id']}_{i}")
+                
                         st.divider()
                         col_s_e, col_i_e = st.columns(2)
                         with col_s_e:
                             st.subheader("💪 My Strengths")
                             s_vals = latest_eval["strengths"] if latest_eval and latest_eval.get("strengths") else ["", "", ""]
-                            s1_e = st.text_input(f"s1_edit_{sel_row['id']}", value=s_vals[0] if len(s_vals) > 0 else "")
-                            s2_e = st.text_input(f"s2_edit_{sel_row['id']}", value=s_vals[1] if len(s_vals) > 1 else "")
-                            s3_e = st.text_input(f"s3_edit_{sel_row['id']}", value=s_vals[2] if len(s_vals) > 2 else "")
+                            s1_e = st.text_input("Strength 1", value=s_vals[0] if len(s_vals) > 0 else "", key=f"s1_edit_{sel_row['id']}")
+                            s2_e = st.text_input("Strength 2", value=s_vals[1] if len(s_vals) > 1 else "", key=f"s2_edit_{sel_row['id']}_2")
+                            s3_e = st.text_input("Strength 3", value=s_vals[2] if len(s_vals) > 2 else "", key=f"s3_edit_{sel_row['id']}_3")
                         with col_i_e:
                             st.subheader("📈 Need to Improve")
                             i_vals = latest_eval["improvements"] if latest_eval and latest_eval.get("improvements") else ["", "", ""]
-                            i1_e = st.text_input(f"i1_edit_{sel_row['id']}", value=i_vals[0] if len(i_vals) > 0 else "")
-                            i2_e = st.text_input(f"i2_edit_{sel_row['id']}", value=i_vals[1] if len(i_vals) > 1 else "")
-                            i3_e = st.text_input(f"i3_edit_{sel_row['id']}", value=i_vals[2] if len(i_vals) > 2 else "")
-
+                            i1_e = st.text_input("Improvement 1", value=i_vals[0] if len(i_vals) > 0 else "", key=f"i1_edit_{sel_row['id']}")
+                            i2_e = st.text_input("Improvement 2", value=i_vals[1] if len(i_vals) > 1 else "", key=f"i2_edit_{sel_row['id']}_2")
+                            i3_e = st.text_input("Improvement 3", value=i_vals[2] if len(i_vals) > 2 else "", key=f"i3_edit_{sel_row['id']}_3")
+                
                         st.divider()
                         if st.form_submit_button("💾 Salvar avaliação"):
                             if not analyst_e.strip():
                                 st.error("Nome do analista é obrigatório.")
                             else:
-                                # Build skills dict matching save_evaluation shape
                                 skills_payload = {"technical": tv_e, "player_specific": ps_e, "mental": mv_e}
                                 mog_payload = mgv_e
                                 strengths_payload = [s1_e, s2_e, s3_e]
@@ -555,7 +566,6 @@ elif page == "📚 Jogadores":
                                     except Exception as ex:
                                         st.error(f"Erro ao atualizar avaliação: {ex}")
                                 else:
-                                    # Create a new evaluation
                                     try:
                                         save_evaluation(
                                             player_id=int(sel_row["id"]),
@@ -570,10 +580,10 @@ elif page == "📚 Jogadores":
                                         st.experimental_rerun()
                                     except Exception as ex:
                                         st.error(f"Erro ao criar avaliação: {ex}")
-
-        st.markdown("---")
-        csv = display_df.to_csv(index=False).encode("utf-8")
-        st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
+                
+                        st.markdown("---")
+                        csv = display_df.to_csv(index=False).encode("utf-8")
+                        st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
 
 # ---------------------------
 # Page: Dashboard (full)
