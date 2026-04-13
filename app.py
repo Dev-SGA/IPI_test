@@ -381,7 +381,7 @@ else:
         unsafe_allow_html=True,
     )
 
-_css = """
+    _css = """
     <style>
     html, body, .stApp, .stApp * {
         font-family: %(fg)s !important;
@@ -525,7 +525,7 @@ _css = """
             display: inline-block;
             padding: 6px 12px;
             border-radius: 6px;
-            font-family: %s !important;
+            font-family: %(fg)s !important;
             font-size: 0.82rem;
             font-weight: 700;
             white-space: nowrap;
