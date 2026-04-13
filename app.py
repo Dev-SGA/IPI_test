@@ -41,11 +41,11 @@ PLAYERS = {
             ("", ""),
         ],
         "mog": {
-            "Off. Possession": 75,
-            "Off. Transition": 60,
-            "Def. Organization": 55,
-            "Def. Transition": 50,
-            "Set Pieces": 65,
+            "Off.<br>Possession": 75,
+            "Off.<br>Transition": 60,
+            "Def.<br>Organization": 55,
+            "Def.<br>Transition": 50,
+            "Set<br>Pieces": 65,
         },
         "strengths": [
             "Ability to combine",
@@ -104,28 +104,21 @@ st.markdown(
         background: linear-gradient(90deg, {COLORS['primary']}, {COLORS['primary_mid']});
         padding: 20px 36px;
         border-radius: 12px;
-        display: flex;
-        align-items: center;
-        gap: 18px;
+        display: flex; align-items: center; gap: 18px;
         margin-bottom: 24px;
         box-shadow: 0 4px 16px {COLORS['card_shadow']};
     }}
     .header-bar .logo {{ font-size: 2rem; line-height: 1; }}
     .header-bar .header-text {{ display: flex; flex-direction: column; }}
     .header-bar .brand {{
-        color: {COLORS['accent']};
-        font-size: 0.85rem; font-weight: 600;
+        color: {COLORS['accent']}; font-size: 0.85rem; font-weight: 600;
         letter-spacing: 2px; text-transform: uppercase;
     }}
-    .header-bar h1 {{
-        color: white; margin: 0;
-        font-size: 1.65rem; font-weight: 800;
-    }}
+    .header-bar h1 {{ color: white; margin: 0; font-size: 1.65rem; font-weight: 800; }}
 
     /* ── Player Card ── */
     .card {{
-        background: {COLORS['card_bg']};
-        border-radius: 12px; padding: 20px;
+        background: {COLORS['card_bg']}; border-radius: 12px; padding: 20px;
         box-shadow: 0 2px 12px {COLORS['card_shadow']};
     }}
     .player-card {{ text-align: center; }}
@@ -135,8 +128,7 @@ st.markdown(
         border: 3px solid {COLORS['accent']};
     }}
     .player-card .divider {{
-        width: 50px; height: 3px;
-        background: {COLORS['primary_light']};
+        width: 50px; height: 3px; background: {COLORS['primary_light']};
         border-radius: 2px; margin: 10px auto;
     }}
     .player-card .label {{
@@ -156,56 +148,35 @@ st.markdown(
         margin-bottom: 16px;
     }}
     .section-header {{
-        background: {COLORS['primary']};
-        color: white; padding: 10px 20px;
-        font-size: 1.05rem; font-weight: 700;
+        background: {COLORS['primary']}; color: white;
+        padding: 10px 20px; font-size: 1.05rem; font-weight: 700;
     }}
     .section-body {{
-        background: {COLORS['primary_light']};
-        padding: 14px 10px;
+        background: {COLORS['primary_light']}; padding: 14px 10px;
     }}
 
     /* ── Badge Table ── */
     .badge-table {{
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
+        width: 100%; border-collapse: collapse; table-layout: fixed;
     }}
-    .badge-table td {{
-        padding: 8px 6px;
-        vertical-align: middle;
-    }}
+    .badge-table td {{ padding: 8px 6px; vertical-align: middle; }}
     .badge-table .cell-label {{
-        color: white;
-        font-size: 0.88rem;
-        font-weight: 500;
-        text-align: right;
-        padding-right: 8px;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        color: white; font-size: 0.88rem; font-weight: 500;
+        text-align: right; padding-right: 8px;
+        overflow: hidden; text-overflow: ellipsis;
     }}
-    .badge-table .cell-tag {{
-        text-align: left;
-        width: 100px;
-    }}
+    .badge-table .cell-tag {{ text-align: left; width: 100px; }}
     .badge-tag {{
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 5px;
-        font-size: 0.78rem;
-        font-weight: 700;
-        white-space: nowrap;
-        letter-spacing: 0.3px;
-        min-width: 80px;
-        text-align: center;
+        display: inline-block; padding: 4px 12px; border-radius: 5px;
+        font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+        letter-spacing: 0.3px; min-width: 80px; text-align: center;
     }}
 
     /* ── Text lists ── */
     .text-list {{ list-style: none; padding: 0; margin: 0; }}
     .text-list li {{
         color: white; font-size: 0.95rem; font-weight: 600;
-        padding: 5px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.15);
+        padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.15);
     }}
     .text-list li:last-child {{ border-bottom: none; }}
     .text-list .num {{
@@ -215,7 +186,7 @@ st.markdown(
         border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
     }}
 
-    /* ── Radar: remove gaps do Streamlit ── */
+    /* ── Radar container ── */
     .radar-container {{
         background: {COLORS['radar_bg']};
         border-radius: 12px;
@@ -223,9 +194,16 @@ st.markdown(
         overflow: hidden;
         margin-bottom: 16px;
     }}
+    /* Remove qualquer gap interno que o Streamlit injete */
+    .radar-container > div {{
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+    .radar-container iframe,
     .radar-container .stPlotlyChart {{
         margin: 0 !important;
         padding: 0 !important;
+        border-radius: 12px;
     }}
 
     div[data-testid="stSelectbox"] label {{
@@ -260,7 +238,6 @@ def render_badges_table(items: list, cols: int = 4) -> str:
     col_defs = ""
     for _ in range(cols):
         col_defs += '<col style="width:auto"><col style="width:100px">'
-
     rows_html = ""
     for row_start in range(0, len(items), cols):
         row_items = items[row_start : row_start + cols]
@@ -274,7 +251,6 @@ def render_badges_table(items: list, cols: int = 4) -> str:
         remaining = cols - len(row_items)
         cells += "<td></td><td></td>" * remaining
         rows_html += f"<tr>{cells}</tr>"
-
     return f'<table class="badge-table"><colgroup>{col_defs}</colgroup>{rows_html}</table>'
 
 
@@ -287,7 +263,6 @@ def render_list(items: list) -> str:
 
 
 def build_radar_chart(mog_data: dict) -> go.Figure:
-    """Cria o radar com título embutido no Plotly — zero HTML externo."""
     categories = list(mog_data.keys())
     values = list(mog_data.values())
     categories_closed = categories + [categories[0]]
@@ -308,22 +283,18 @@ def build_radar_chart(mog_data: dict) -> go.Figure:
     )
 
     fig.update_layout(
-        # Título embutido no próprio gráfico
         title=dict(
             text="<b>MoG – Moments of the Game</b>",
-            font=dict(size=16, color="white", family="Arial, sans-serif"),
-            x=0.5,
-            xanchor="center",
-            y=0.97,
-            yanchor="top",
-            pad=dict(t=0, b=0),
+            font=dict(size=15, color="white", family="Arial, sans-serif"),
+            x=0.5, xanchor="center",
+            y=0.98, yanchor="top",
         ),
         polar=dict(
             bgcolor="rgba(255,255,255,0.03)",
-            domain=dict(x=[0.05, 0.95], y=[0, 0.88]),
+            # Domínio reduzido → radar menor → mais espaço para labels
+            domain=dict(x=[0.15, 0.85], y=[0.0, 0.82]),
             radialaxis=dict(
-                visible=True,
-                range=[0, 100],
+                visible=True, range=[0, 100],
                 showticklabels=False,
                 gridcolor="rgba(255,255,255,0.10)",
                 linecolor="rgba(255,255,255,0.05)",
@@ -331,15 +302,20 @@ def build_radar_chart(mog_data: dict) -> go.Figure:
             angularaxis=dict(
                 gridcolor="rgba(255,255,255,0.10)",
                 linecolor="rgba(255,255,255,0.12)",
-                tickfont=dict(size=12, color="#B0BEC5", family="Arial, sans-serif"),
+                tickfont=dict(
+                    size=11,
+                    color="#CFD8DC",
+                    family="Arial, sans-serif",
+                ),
                 rotation=90,
             ),
         ),
         paper_bgcolor=COLORS["radar_bg"],
         plot_bgcolor=COLORS["radar_bg"],
         showlegend=False,
-        margin=dict(l=12, r=12, t=50, b=12),
-        height=380,
+        # Margens generosas para labels não serem cortados
+        margin=dict(l=60, r=60, t=55, b=50),
+        height=440,
     )
 
     return fig
@@ -373,7 +349,6 @@ p = PLAYERS[player_name]
 left_col, right_col = st.columns([1, 3], gap="large")
 
 with left_col:
-    # Player Card
     st.markdown(
         f"""
         <div class="card player-card">
@@ -390,7 +365,7 @@ with left_col:
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # Radar — componente único, sem HTML wrapper separado
+    # Radar
     radar_fig = build_radar_chart(p["mog"])
     st.markdown('<div class="radar-container">', unsafe_allow_html=True)
     st.plotly_chart(
@@ -406,7 +381,6 @@ with right_col:
         render_section("Technical", render_badges_table(p["technical"], cols=4)),
         unsafe_allow_html=True,
     )
-
     st.markdown(
         render_section(
             "Player-Specific Indicators",
@@ -414,7 +388,6 @@ with right_col:
         ),
         unsafe_allow_html=True,
     )
-
     st.markdown(
         render_section("Mental", render_badges_table(p["mental"], cols=4)),
         unsafe_allow_html=True,
