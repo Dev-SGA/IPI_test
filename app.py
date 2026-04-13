@@ -118,7 +118,7 @@ def delete_player(player_id: int):
     conn.close()
 
 
-# DB helper: update player (adicionado)
+# DB helper: update player
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     conn = get_db()
     try:
@@ -128,7 +128,6 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
         )
         conn.commit()
     except sqlite3.IntegrityError:
-        # re-raise para o chamador tratar (ex: mostrar st.error)
         conn.close()
         raise
     conn.close()
@@ -416,228 +415,228 @@ else:
         unsafe_allow_html=True,
     )
 
-_css = """
-    <style>
-    html, body, .stApp, .stApp * {
-        font-family: %(fg)s !important;
-    }
-    .block-container {
-        max-width: 1600px !important;
-        padding-left: 2rem;
-        padding-right: 2rem;
-    }
-
-    .header-bar {
-        background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
-        padding: 28px 40px;             /* aumentei o padding vertical para acomodar o logo maior */
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        gap: 28px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 20px rgba(103,182,251,0.30);
-        position: relative;
-        overflow: hidden;
-    }
-    .header-bar::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: url("data:image/svg+xml,%%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cg fill='none' fill-rule='evenodd'%%3E%%3Cg fill='%%23ffffff' fill-opacity='0.06'%%3E%%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'%%2F%%3E%%3C%%2Fg%%3E%%3C%%2Fg%%3E%%3C%%2Fsvg%%3E");
-        pointer-events: none;
-    }
-    .header-bar .header-logo {
-        height: 96px;                   /* aumentado de 64px para 96px */
-        width: auto;
-        object-fit: contain;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
-    }
-    .header-bar .header-sep {
-        width: 2px;
-        height: 72px;                   /* aumentado de 48px para 72px para acompanhar o logo */
-        background: rgba(10,42,74,0.2);
-        border-radius: 1px;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
-    }
-    .header-bar h1 {
-        font-family: %(fd)s !important;
-        color: #0a2a4a;
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 900;
-        letter-spacing: 2.5px;
-        text-transform: uppercase;
-        position: relative;
-        z-index: 1;
-        line-height: 1.2;
-    }
-
-    .card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 12px rgba(13,71,161,0.12);
-    }
-    .player-card { text-align: center; }
-    .player-card img {
-        border-radius: 10px;
-        width: 100%%;
-        max-width: 180px;
-        border: 3px solid #67b6fb;
-    }
-    .player-card .divider {
-        width: 50px; height: 3px;
-        background: #67b6fb;
-        border-radius: 2px;
-        margin: 10px auto;
-    }
-    .player-card .label {
-        font-family: %(fg)s !important;
-        font-size: 0.72rem;
-        color: #78909C;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 700;
-    }
-    .player-card .value {
-        font-family: %(fg)s !important;
-        font-size: 1.05rem;
-        color: #0D47A1;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
-
-    .section {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        margin-bottom: 16px;
-    }
-    .section-header {
-        background: #0D47A1;
-        color: white;
-        padding: 10px 20px;
-        font-family: %(fd)s !important;
-        font-size: 0.9rem;
-        font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-    }
-    .section-body {
-        background: #1E88E5;
-        padding: 14px 20px;
-    }
-
-    /* Badge Table: aligned columns, no truncation */
-    .badge-table {
-        width: 100%%;
-        border-collapse: collapse;
-        table-layout: fixed;  /* fixed so colgroup widths are respected */
-    }
-    .badge-table td {
-        padding: 8px 8px;
-        vertical-align: middle;
-    }
-    .badge-table .cell-label {
-        color: white;
-        font-family: %(fg)s !important;
-        font-size: 0.92rem;
-        font-weight: 600;
-        text-align: right;
-        padding-right: 14px;
-        white-space: normal;     /* allow wrapping instead of ellipsis */
-        word-break: break-word;
-    }
-    .badge-table .cell-tag {
-        text-align: left;
-        white-space: nowrap;     /* badge must stay single-line */
-    }
-     .badge-tag {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-family: %s !important;
-            font-size: 0.82rem;
-            font-weight: 700;
-            white-space: nowrap;
-            min-width: 90px;
-            text-align: center;
-            /* subtle inner shadow for elegance */
-            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
+    _css = """
+        <style>
+        html, body, .stApp, .stApp * {
+            font-family: %(fg)s !important;
+        }
+        .block-container {
+            max-width: 1600px !important;
+            padding-left: 2rem;
+            padding-right: 2rem;
         }
 
-    .text-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    .text-list li {
-        color: white;
-        font-family: %(fdo)s !important;
-        font-size: 0.95rem;
-        font-weight: 600;
-        padding: 5px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.15);
-    }
-    .text-list li:last-child { border-bottom: none; }
-    .text-list .num {
-        display: inline-block;
-        width: 24px; height: 24px;
-        line-height: 24px;
-        text-align: center;
-        background: rgba(255,255,255,0.2);
-        border-radius: 50%%;
-        font-size: 0.8rem;
-        margin-right: 8px;
-    }
+        .header-bar {
+            background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
+            padding: 28px 40px;             /* aumentei o padding vertical para acomodar o logo maior */
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 20px rgba(103,182,251,0.30);
+            position: relative;
+            overflow: hidden;
+        }
+        .header-bar::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url("data:image/svg+xml,%%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cg fill='none' fill-rule='evenodd'%%3E%%3Cg fill='%%23ffffff' fill-opacity='0.06'%%3E%%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'%%2F%%3E%%3C%%2Fg%%3E%%3C%%2Fg%%3E%%3C%%2Fsvg%%3E");
+            pointer-events: none;
+        }
+        .header-bar .header-logo {
+            height: 96px;                   /* aumentado de 64px para 96px */
+            width: auto;
+            object-fit: contain;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .header-bar .header-sep {
+            width: 2px;
+            height: 72px;                   /* aumentado de 48px para 72px para acompanhar o logo */
+            background: rgba(10,42,74,0.2);
+            border-radius: 1px;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .header-bar h1 {
+            font-family: %(fd)s !important;
+            color: #0a2a4a;
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: 2.5px;
+            text-transform: uppercase;
+            position: relative;
+            z-index: 1;
+            line-height: 1.2;
+        }
 
-    .radar-outer {
-        background: #0C1F3A;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        overflow: hidden;
-        margin-bottom: 16px;
-    }
-    .radar-title {
-        background: #0C1F3A;
-        color: white;
-        text-align: center;
-        font-family: %(fd)s !important;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        padding: 14px 12px 0 12px;
-    }
-    .radar-body { background: #0C1F3A; }
-    .radar-body > div { margin: 0 !important; padding: 0 !important; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 12px rgba(13,71,161,0.12);
+        }
+        .player-card { text-align: center; }
+        .player-card img {
+            border-radius: 10px;
+            width: 100%%;
+            max-width: 180px;
+            border: 3px solid #67b6fb;
+        }
+        .player-card .divider {
+            width: 50px; height: 3px;
+            background: #67b6fb;
+            border-radius: 2px;
+            margin: 10px auto;
+        }
+        .player-card .label {
+            font-family: %(fg)s !important;
+            font-size: 0.72rem;
+            color: #78909C;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+        }
+        .player-card .value {
+            font-family: %(fg)s !important;
+            font-size: 1.05rem;
+            color: #0D47A1;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
 
-    .no-data-msg {
-        text-align: center;
-        padding: 40px 20px;
-        color: #78909C;
-        font-size: 1.1rem;
-    }
-    .eval-meta {
-        background: rgba(13,71,161,0.06);
-        border-radius: 8px;
-        padding: 8px 16px;
-        margin-top: 8px;
-        font-family: %(fdo)s !important;
-        font-size: 0.85rem;
-        color: #546E7A;
-    }
-    div[data-testid="stSelectbox"] label {
-        font-weight: 600;
-        color: #0D47A1;
-        font-family: %(fg)s !important;
-    }
-    </style>
-    """ % {"fd": FONT_DISPLAY, "fg": FONT_GRAPHIC, "fdo": FONT_DOCUMENT}
+        .section {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+            margin-bottom: 16px;
+        }
+        .section-header {
+            background: #0D47A1;
+            color: white;
+            padding: 10px 20px;
+            font-family: %(fd)s !important;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .section-body {
+            background: #1E88E5;
+            padding: 14px 20px;
+        }
+
+        /* Badge Table: aligned columns, no truncation */
+        .badge-table {
+            width: 100%%;
+            border-collapse: collapse;
+            table-layout: fixed;  /* fixed so colgroup widths are respected */
+        }
+        .badge-table td {
+            padding: 8px 8px;
+            vertical-align: middle;
+        }
+        .badge-table .cell-label {
+            color: white;
+            font-family: %(fg)s !important;
+            font-size: 0.92rem;
+            font-weight: 600;
+            text-align: right;
+            padding-right: 14px;
+            white-space: normal;     /* allow wrapping instead of ellipsis */
+            word-break: break-word;
+        }
+        .badge-table .cell-tag {
+            text-align: left;
+            white-space: nowrap;     /* badge must stay single-line */
+        }
+         .badge-tag {
+                display: inline-block;
+                padding: 6px 12px;
+                border-radius: 6px;
+                font-family: %(fg)s !important;
+                font-size: 0.82rem;
+                font-weight: 700;
+                white-space: nowrap;
+                min-width: 90px;
+                text-align: center;
+                /* subtle inner shadow for elegance */
+                box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
+            }
+
+        .text-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .text-list li {
+            color: white;
+            font-family: %(fdo)s !important;
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+        }
+        .text-list li:last-child { border-bottom: none; }
+        .text-list .num {
+            display: inline-block;
+            width: 24px; height: 24px;
+            line-height: 24px;
+            text-align: center;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%%;
+            font-size: 0.8rem;
+            margin-right: 8px;
+        }
+
+        .radar-outer {
+            background: #0C1F3A;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .radar-title {
+            background: #0C1F3A;
+            color: white;
+            text-align: center;
+            font-family: %(fd)s !important;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 14px 12px 0 12px;
+        }
+        .radar-body { background: #0C1F3A; }
+        .radar-body > div { margin: 0 !important; padding: 0 !important; }
+
+        .no-data-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: #78909C;
+            font-size: 1.1rem;
+        }
+        .eval-meta {
+            background: rgba(13,71,161,0.06);
+            border-radius: 8px;
+            padding: 8px 16px;
+            margin-top: 8px;
+            font-family: %(fdo)s !important;
+            font-size: 0.85rem;
+            color: #546E7A;
+        }
+        div[data-testid="stSelectbox"] label {
+            font-weight: 600;
+            color: #0D47A1;
+            font-family: %(fg)s !important;
+        }
+        </style>
+        """ % {"fd": FONT_DISPLAY, "fg": FONT_GRAPHIC, "fdo": FONT_DOCUMENT}
 
     st.markdown(_css, unsafe_allow_html=True)
 
