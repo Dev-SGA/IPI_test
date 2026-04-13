@@ -5,7 +5,7 @@ import pandas as pd
 import sqlite3
 import base64
 from pathlib import Path
-from datetime import date
+from datetime import date, datetime
 
 st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
@@ -159,6 +159,41 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
     return eid
 
 
+def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
+    conn = get_db()
+    conn.execute("UPDATE evaluations SET analyst = ?, eval_date = ? WHERE id = ?", (analyst, eval_date, evaluation_id))
+    conn.commit()
+    conn.close()
+
+
+def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (evaluation_id,))
+    cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (evaluation_id,))
+    cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (evaluation_id,))
+    # Insert new
+    for cat, sd in skills.items():
+        for sn, lv in sd.items():
+            if sn.strip() and lv.strip():
+                cur.execute(
+                    "INSERT INTO eval_skills (evaluation_id,category,skill_name,level) VALUES (?,?,?,?)",
+                    (evaluation_id, cat, sn, lv)
+                )
+    for c, v in mog.items():
+        cur.execute("INSERT INTO eval_mog (evaluation_id,category,value) VALUES (?,?,?)", (evaluation_id, c, v))
+    for i, t in enumerate(strengths):
+        if t.strip():
+            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'strength',?,?)",
+                        (evaluation_id, i + 1, t))
+    for i, t in enumerate(improvements):
+        if t.strip():
+            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'improve',?,?)",
+                        (evaluation_id, i + 1, t))
+    conn.commit()
+    conn.close()
+
+
 def get_latest_evaluation(player_id):
     conn = get_db()
     cur = conn.cursor()
@@ -180,7 +215,7 @@ def get_latest_evaluation(player_id):
                          (eid,)):
         (strengths if r["note_type"] == "strength" else improvements).append(r["text"])
     conn.close()
-    return {"analyst": ev["analyst"], "eval_date": ev["eval_date"], "skills": skills, "mog": mog,
+    return {"id": eid, "analyst": ev["analyst"], "eval_date": ev["eval_date"], "skills": skills, "mog": mog,
             "strengths": strengths, "improvements": improvements}
 
 
@@ -328,27 +363,171 @@ elif page == "📚 Jogadores":
 
         sel_name = st.selectbox("Selecione um atleta", players_df["name"].tolist())
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
+        evaluation = get_latest_evaluation(int(sel_row["id"]))
 
-        # Layout: left = view / delete actions, right = edit form (aligned with "Ações")
-        # Using two columns so edit card sits aligned with Actions and is always visible
-        left_col, right_col = st.columns([2, 1], gap="large")
+        # Layout: left = edit form + basic actions (aligned with "Ações"), right = details / radar
+        left_col, right_col = st.columns([1, 2], gap="large")
 
-        # Left column: display basic info and view/delete actions
+        # LEFT: Edit card + View / Delete actions
         with left_col:
-            st.markdown(f"**Nome:** {sel_row['name']}")
-            st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
-            if sel_row["photo_url"]:
-                st.image(sel_row["photo_url"], width=160)
+            # Edit card
+            st.markdown('<div class="card" style="padding:12px">', unsafe_allow_html=True)
+            st.markdown('### ✏️ Editar jogador')
 
-            st.markdown("")  # small spacer
+            # Prefill player fields
+            with st.form(f"form_edit_{sel_row['id']}"):
+                new_name = st.text_input("Nome completo *", value=sel_row["name"])
+                new_position = st.text_input("Posição", value=sel_row["position"] or "")
+                new_club = st.text_input("Clube", value=sel_row["club"] or "")
+                new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+
+                st.divider()
+                st.markdown("**Avaliação (editar última ou criar nova)**")
+
+                # Analyst and date (prefill if evaluation exists)
+                if evaluation:
+                    analyst_val = evaluation.get("analyst", "")
+                    try:
+                        eval_date_prefill = datetime.fromisoformat(evaluation.get("eval_date")).date()
+                    except Exception:
+                        eval_date_prefill = date.today()
+                else:
+                    analyst_val = ""
+                    eval_date_prefill = date.today()
+
+                analyst_input = st.text_input("Analista", value=analyst_val)
+                eval_date_input = st.date_input("Data da avaliação", value=eval_date_prefill)
+
+                st.subheader("🎯 Technical")
+                # technical prefill
+                tech_cols = st.columns(2)
+                tech_vals = {}
+                for i, s in enumerate(TECHNICAL_SKILLS):
+                    # find existing value
+                    cur_val = ""
+                    if evaluation and evaluation.get("skills", {}).get("technical", {}):
+                        cur_val = evaluation["skills"]["technical"].get(s, "")
+                    # create selectbox (use unique keys)
+                    tech_vals[s] = st.selectbox(f"{s}", [""] + LEVELS, index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0, key=f"edit_t_{s}")
+
+                st.subheader("⚡ Player-Specific Indicators (até 4)")
+                ps_names = []
+                ps_levels = []
+                existing_ps = {}
+                if evaluation and evaluation.get("skills", {}).get("player_specific", {}):
+                    existing_ps = evaluation["skills"]["player_specific"].copy()
+                ps_items = list(existing_ps.items())
+                # Pad to 4
+                while len(ps_items) < 4:
+                    ps_items.append(("", ""))
+                for i in range(4):
+                    name_key = f"edit_ps_name_{sel_row['id']}_{i}"
+                    level_key = f"edit_ps_level_{sel_row['id']}_{i}"
+                    default_name = ps_items[i][0]
+                    default_level = ps_items[i][1] if ps_items[i][1] in LEVELS else ""
+                    n = st.text_input(f"Atributo {i+1}", value=default_name or "", key=name_key)
+                    l = st.selectbox(f"Nível {i+1}", [""] + LEVELS, index=([""] + LEVELS).index(default_level) if default_level in LEVELS else 0, key=level_key)
+                    ps_names.append(n)
+                    ps_levels.append(l)
+
+                st.subheader("🧠 Mental")
+                mental_vals = {}
+                for i, s in enumerate(MENTAL_SKILLS):
+                    cur_val = ""
+                    if evaluation and evaluation.get("skills", {}).get("mental", {}):
+                        cur_val = evaluation["skills"]["mental"].get(s, "")
+                    mental_vals[s] = st.selectbox(f"{s}", [""] + LEVELS, index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0, key=f"edit_m_{s}")
+
+                st.subheader("📐 Moments of the Game (MoG)")
+                mog_vals = {}
+                for i, c in enumerate(MOG_CATEGORIES):
+                    cur_v = 50
+                    if evaluation and evaluation.get("mog", {}):
+                        cur_v = int(evaluation["mog"].get(c, 50))
+                    mog_vals[c] = st.slider(c, 0, 100, cur_v, key=f"edit_mog_{c}")
+
+                st.subheader("💪 Strengths / 📈 Need to Improve")
+                # strengths/improvements: prefills
+                s_pref = ["", "", ""]
+                i_pref = ["", "", ""]
+                if evaluation:
+                    s_pref = (evaluation.get("strengths") or []) + ["", "", ""]
+                    i_pref = (evaluation.get("improvements") or []) + ["", "", ""]
+                s1 = st.text_input("Strength 1", value=s_pref[0] or "", key=f"edit_s1_{sel_row['id']}")
+                s2 = st.text_input("Strength 2", value=s_pref[1] or "", key=f"edit_s2_{sel_row['id']}")
+                s3 = st.text_input("Strength 3", value=s_pref[2] or "", key=f"edit_s3_{sel_row['id']}")
+                i1 = st.text_input("Improvement 1", value=i_pref[0] or "", key=f"edit_i1_{sel_row['id']}")
+                i2 = st.text_input("Improvement 2", value=i_pref[1] or "", key=f"edit_i2_{sel_row['id']}")
+                i3 = st.text_input("Improvement 3", value=i_pref[2] or "", key=f"edit_i3_{sel_row['id']}")
+
+                st.markdown("")  # spacer
+                save_clicked = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
+
+                if save_clicked:
+                    # Validation
+                    if not new_name.strip():
+                        st.error("Nome é obrigatório.")
+                    else:
+                        try:
+                            # Update player data
+                            update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
+
+                            # Build skills dicts from inputs
+                            technical_payload = {s: (tech_vals[s] or "").strip() for s in TECHNICAL_SKILLS}
+                            mental_payload = {s: (mental_vals[s] or "").strip() for s in MENTAL_SKILLS}
+                            ps_payload = {}
+                            for n, l in zip(ps_names, ps_levels):
+                                if n.strip() and l:
+                                    ps_payload[n.strip()] = l
+
+                            skills_payload = {
+                                "technical": technical_payload,
+                                "player_specific": ps_payload,
+                                "mental": mental_payload,
+                            }
+                            mog_payload = {c: int(mog_vals[c]) for c in MOG_CATEGORIES}
+                            strengths_payload = [s1, s2, s3]
+                            improvements_payload = [i1, i2, i3]
+
+                            # If evaluation exists -> update meta + replace content
+                            if evaluation:
+                                eval_id = evaluation["id"]
+                                # update meta
+                                update_evaluation_meta(eval_id, analyst_input.strip() or evaluation.get("analyst", ""), eval_date_input.isoformat())
+                                # replace content
+                                replace_evaluation_content(eval_id, skills_payload, mog_payload, strengths_payload, improvements_payload)
+                                st.success(f"✅ Jogador e avaliação atualizados com sucesso!")
+                            else:
+                                # Create new evaluation (analyst required)
+                                if not analyst_input.strip():
+                                    st.error("Analista é necessário ao criar nova avaliação.")
+                                else:
+                                    player_id = int(sel_row["id"])
+                                    save_evaluation(
+                                        player_id=player_id,
+                                        analyst=analyst_input.strip(),
+                                        eval_date=eval_date_input.isoformat(),
+                                        skills=skills_payload,
+                                        mog=mog_payload,
+                                        strengths=strengths_payload,
+                                        improvements=improvements_payload,
+                                    )
+                                    st.success("✅ Jogador atualizado e nova avaliação criada!")
+                            st.experimental_rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Já existe um jogador com esse nome. Escolha outro nome.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+            # Below edit card: other actions (view / delete)
+            st.markdown("")  # spacer
             if st.button("Ver avaliações deste atleta"):
-                evaluation = get_latest_evaluation(int(sel_row["id"]))
-                if not evaluation:
+                evaluation_view = get_latest_evaluation(int(sel_row["id"]))
+                if not evaluation_view:
                     st.info("Nenhuma avaliação encontrada para este atleta.")
                 else:
                     st.markdown("**Última Avaliação**")
-                    st.markdown(f"**Analista:** {evaluation['analyst']}  •  **Data:** {evaluation['eval_date']}")
-                    sk = evaluation["skills"]
+                    st.markdown(f"**Analista:** {evaluation_view['analyst']}  •  **Data:** {evaluation_view['eval_date']}")
+                    sk = evaluation_view["skills"]
                     if sk.get("technical"):
                         st.markdown("**Technical**")
                         tdf = pd.DataFrame(list(sk.get("technical").items()), columns=["Skill", "Level"])
@@ -361,16 +540,16 @@ elif page == "📚 Jogadores":
                         st.markdown("**Mental**")
                         mdf = pd.DataFrame(list(sk.get("mental").items()), columns=["Skill", "Level"])
                         st.table(mdf)
-                    if evaluation.get("mog"):
+                    if evaluation_view.get("mog"):
                         st.markdown("**MoG**")
-                        mogdf = pd.DataFrame(list(evaluation["mog"].items()), columns=["Category", "Value"])
+                        mogdf = pd.DataFrame(list(evaluation_view["mog"].items()), columns=["Category", "Value"])
                         st.table(mogdf)
-                    if evaluation.get("strengths"):
+                    if evaluation_view.get("strengths"):
                         st.markdown("**Strengths**")
-                        st.write(evaluation["strengths"])
-                    if evaluation.get("improvements"):
+                        st.write(evaluation_view["strengths"])
+                    if evaluation_view.get("improvements"):
                         st.markdown("**Need to Improve**")
-                        st.write(evaluation["improvements"])
+                        st.write(evaluation_view["improvements"])
 
             st.markdown("")  # spacer
             confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
@@ -380,40 +559,44 @@ elif page == "📚 Jogadores":
                     st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                     st.experimental_rerun()
 
-        # Right column: Editing card aligned with Actions (edita todos os atributos)
+        # RIGHT: Details / Radar / Meta (visual)
         with right_col:
-            # Card wrapper (styling uses app CSS defined in Dashboard; safe to use simple markup)
-            st.markdown('<div class="card" style="padding:12px">', unsafe_allow_html=True)
-            st.markdown('### ✏️ Editar jogador')
+            st.markdown(f"**Nome:** {sel_row['name']}")
+            st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
+            if sel_row["photo_url"]:
+                st.image(sel_row["photo_url"], width=180)
 
-            # Edit form: allows editing all player attributes (name, position, club, photo_url)
-            with st.form(f"form_edit_{sel_row['id']}"):
-                new_name = st.text_input("Nome completo *", value=sel_row["name"])
-                new_position = st.text_input("Posição", value=sel_row["position"] or "")
-                new_club = st.text_input("Clube", value=sel_row["club"] or "")
-                new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
-
-                # Optional: preview the photo URL entered (helps confirm before saving)
-                if new_photo.strip():
-                    try:
-                        st.image(new_photo.strip(), width=160)
-                    except Exception:
-                        # if image can't be loaded, ignore silently (avoid crashing)
-                        pass
-
-                submitted = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
-                if submitted:
-                    if not new_name.strip():
-                        st.error("Nome é obrigatório.")
-                    else:
-                        try:
-                            update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
-                            st.success(f"✅ Jogador **{new_name}** atualizado com sucesso!")
-                            # After update, refresh players list and UI
-                            st.experimental_rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
-            st.markdown("</div>", unsafe_allow_html=True)
+            if evaluation and evaluation.get("mog"):
+                st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+                def build_radar(mog_data):
+                    cats = list(mog_data.keys())
+                    vals = list(mog_data.values())
+                    cats_c = cats + [cats[0]]
+                    vals_c = vals + [vals[0]]
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatterpolar(
+                        r=vals_c, theta=cats_c, fill="toself",
+                        fillcolor="rgba(100,181,246,0.30)",
+                        line=dict(color="#64B5F6", width=2.5),
+                        marker=dict(size=6, color="#64B5F6"),
+                    ))
+                    fig.update_layout(
+                        polar=dict(
+                            bgcolor="rgba(255,255,255,0.03)",
+                            domain=dict(x=[0.0, 1.0], y=[0.0, 1.0]),
+                            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
+                                            gridcolor="rgba(255,255,255,0.10)"),
+                            angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
+                                             tickfont=dict(size=12, color="#CFD8DC",
+                                                           family="Source Sans 3, Trebuchet MS, sans-serif"),
+                                             rotation=90),
+                        ),
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        showlegend=False, margin=dict(l=40, r=40, t=20, b=20), height=380,
+                    )
+                    return fig
+                fig = build_radar(evaluation["mog"])
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
@@ -662,7 +845,7 @@ else:
 
     st.markdown(_css, unsafe_allow_html=True)
 
-    # Helpers
+    # Helpers reused in dashboard
     def badge_tag(level):
         if not level:
             return ""
