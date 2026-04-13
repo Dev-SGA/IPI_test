@@ -381,8 +381,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    # CSS: use % formatting to avoid f-string braces conflicts
-    _css = """
+ _css = """
     <style>
     html, body, .stApp, .stApp * {
         font-family: %(fg)s !important;
@@ -395,7 +394,7 @@ else:
 
     .header-bar {
         background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
-        padding: 22px 40px;
+        padding: 28px 40px;             /* aumentei o padding vertical para acomodar o logo maior */
         border-radius: 12px;
         display: flex;
         align-items: center;
@@ -413,7 +412,7 @@ else:
         pointer-events: none;
     }
     .header-bar .header-logo {
-        height: 64px;
+        height: 96px;                   /* aumentado de 64px para 96px */
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
@@ -422,7 +421,7 @@ else:
     }
     .header-bar .header-sep {
         width: 2px;
-        height: 48px;
+        height: 72px;                   /* aumentado de 48px para 72px para acompanhar o logo */
         background: rgba(10,42,74,0.2);
         border-radius: 1px;
         flex-shrink: 0;
