@@ -1041,7 +1041,7 @@ else:
         <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
             <div class="header-sep"></div>
-            <h1>Individual Development Plan</h1>
+            <h1>Individual Player Indicators</h1>
         </div>
         ''', unsafe_allow_html=True)
 
