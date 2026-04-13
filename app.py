@@ -1,4 +1,4 @@
-# app.py (v12) - imagens ajustadas para caber na caixa fixa (sem cortar)
+# app.py (v13) - reduzir espaço entre título e radar + evitar corte dos labels
 import os
 import time
 import streamlit as st
@@ -638,11 +638,14 @@ elif page == "📚 Jogadores":
                 )
 
             if evaluation and evaluation.get("mog"):
-                st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+                # reduced spacer (was larger); less gap between title and chart
+                st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
                 def build_radar(mog_data):
                     cats = list(mog_data.keys())
                     vals = list(mog_data.values())
+                    if not cats:
+                        return go.Figure()
                     cats_c = cats + [cats[0]]
                     vals_c = vals + [vals[0]]
                     fig = go.Figure()
@@ -658,18 +661,26 @@ elif page == "📚 Jogadores":
                             domain=dict(x=[0.0, 1.0], y=[0.0, 1.0]),
                             radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
                                             gridcolor="rgba(255,255,255,0.10)"),
-                            angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
-                                             tickfont=dict(size=12, color="#CFD8DC",
-                                                           family="Source Sans 3, Trebuchet MS, sans-serif"),
-                                             rotation=90),
+                            angularaxis=dict(
+                                gridcolor="rgba(255,255,255,0.10)",
+                                tickfont=dict(size=12, color="#CFD8DC",
+                                              family="Source Sans 3, Trebuchet MS, sans-serif"),
+                                rotation=90,
+                            ),
                         ),
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        showlegend=False, margin=dict(l=40, r=40, t=20, b=20), height=380,
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        showlegend=False,
+                        margin=dict(l=40, r=40, t=48, b=40),  # increased top margin to avoid label clipping
+                        height=420,  # slightly taller to give room for labels
                     )
                     return fig
 
+                # title + chart with tighter spacing and safer margins to avoid label clipping
+                st.markdown('<div class="block-container radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
                 fig = build_radar(evaluation["mog"])
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+                st.markdown("</div></div>", unsafe_allow_html=True)
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
@@ -798,6 +809,29 @@ else:
         padding: 14px 20px;
     }
 
+    .block-container .radar-outer {
+        background: #0C1F3A;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+        overflow: hidden;
+        margin-bottom: 8px; /* reduced bottom spacing */
+    }
+    /* reduced padding to bring chart closer to title */
+    .block-container .radar-title {
+        background: #0C1F3A;
+        color: white;
+        text-align: center;
+        font-family: __FD__ !important;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 8px 12px 6px 12px; /* smaller top & bottom padding */
+        margin-bottom: 0;
+    }
+    .block-container .radar-body { background: #0C1F3A; padding: 0 8px 12px 8px; } /* small bottom padding */
+    .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
+
     .block-container .badge-table {
         width: 100%;
         border-collapse: collapse;
@@ -858,27 +892,6 @@ else:
         font-size: 0.8rem;
         margin-right: 8px;
     }
-
-    .block-container .radar-outer {
-        background: #0C1F3A;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        overflow: hidden;
-        margin-bottom: 16px;
-    }
-    .block-container .radar-title {
-        background: #0C1F3A;
-        color: white;
-        text-align: center;
-        font-family: __FD__ !important;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        padding: 14px 12px 0 12px;
-    }
-    .block-container .radar-body { background: #0C1F3A; }
-    .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
 
     .block-container .no-data-msg {
         text-align: center;
@@ -959,7 +972,9 @@ else:
 
     def build_radar(mog_data):
         cats = list(mog_data.keys())
-        vals = list(mog_data.values())
+        vals = list(mog_data.values()) if mog_data else [50]*len(cats)
+        if not cats:
+            return go.Figure()
         cats_c = cats + [cats[0]]
         vals_c = vals + [vals[0]]
         fig = go.Figure()
@@ -975,13 +990,18 @@ else:
                 domain=dict(x=[0.0, 1.0], y=[0.0, 1.0]),
                 radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
                                 gridcolor="rgba(255,255,255,0.10)"),
-                angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
-                                 tickfont=dict(size=12, color="#CFD8DC",
-                                               family="Source Sans 3, Trebuchet MS, sans-serif"),
-                                 rotation=90),
+                angularaxis=dict(
+                    gridcolor="rgba(255,255,255,0.10)",
+                    tickfont=dict(size=12, color="#CFD8DC",
+                                  family="Source Sans 3, Trebuchet MS, sans-serif"),
+                    rotation=90,
+                ),
             ),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False, margin=dict(l=70, r=70, t=40, b=50), height=500,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            margin=dict(l=40, r=40, t=48, b=40),
+            height=420,
         )
         return fig
 
@@ -1031,7 +1051,7 @@ else:
                 ''', unsafe_allow_html=True)
 
         if evaluation and evaluation["mog"]:
-            st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
             st.markdown('<div class="block-container radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
             fig = build_radar(evaluation["mog"])
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
