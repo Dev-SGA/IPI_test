@@ -19,7 +19,7 @@ DB_PATH = "sga_evaluations.db"
 
 # ── OPÇÃO 1: URL externa (mais simples) ──
 # Suba o logo para algum serviço (GitHub, Imgur, etc.) e cole a URL:
-LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Simbolo_SGA_AzulEscuro.png?raw=true"
+LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
 
 # ── OPÇÃO 2: Arquivo local convertido em base64 (funciona offline) ──
 LOGO_PATH = "assets/sga_logo.png"   # caminho relativo ao app.py
