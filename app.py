@@ -35,12 +35,9 @@ LOGO_SRC = get_logo_base64(LOGO_PATH) or LOGO_URL
 # ──────────────────────────────────────────────
 # TIPOGRAFIA
 # ──────────────────────────────────────────────
-# Good Times  →  Orbitron (Google Fonts, gratuita)
-# Source Sans 3   →  mantida (materiais gráficos)
-# Trebuchet MS    →  mantida (documentos)
-FONT_DISPLAY = "'Orbitron', sans-serif"          # Logo, títulos grandes
-FONT_GRAPHIC = "'Source Sans 3', sans-serif"     # Painéis, badges
-FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"  # Listas, meta
+FONT_DISPLAY = "'Orbitron', sans-serif"
+FONT_GRAPHIC = "'Source Sans 3', sans-serif"
+FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
 
 # ──────────────────────────────────────────────
 # SKILLS / LEVELS
@@ -272,192 +269,254 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
-    # ── Google Fonts: Orbitron (display) + Source Sans 3 (graphic) ──
+    # ── Google Fonts — carregadas via <link> separado (sem f-string) ──
     st.markdown(
-        f"""
-        <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
-        <style>
-        /* ── Tipografia base ── */
-        html, body, .stApp, .stApp * {{
-            font-family: {FONT_GRAPHIC} !important;
-        }}
-
-        .block-container {{
-            max-width: 1600px !important;
-            padding-left: 2rem; padding-right: 2rem;
-        }}
-
-        /* ══════════════════════════════════════════
-           HEADER — Orbitron + fundo #67b6fb
-           ══════════════════════════════════════════ */
-        .header-bar {{
-            background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
-            padding: 20px 36px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 22px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 20px rgba(103,182,251,0.30);
-            position: relative;
-            overflow: hidden;
-        }}
-        .header-bar::before {{
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-            pointer-events: none;
-        }}
-        .header-bar .header-logo {{
-            height: 52px;
-            width: auto;
-            object-fit: contain;
-            flex-shrink: 0;
-            position: relative;
-            z-index: 1;
-        }}
-        .header-bar .header-text {{
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            z-index: 1;
-        }}
-        .header-bar .brand {{
-            font-family: {FONT_DISPLAY} !important;
-            color: rgba(10,42,74,0.55);
-            font-size: 0.65rem;
-            font-weight: 700;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-        }}
-        .header-bar h1 {{
-            font-family: {FONT_DISPLAY} !important;
-            color: #0a2a4a;
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 900;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }}
-
-        /* ── Player Card ── */
-        .card {{
-            background: white; border-radius: 12px; padding: 20px;
-            box-shadow: 0 2px 12px rgba(13,71,161,0.12);
-        }}
-        .player-card {{ text-align: center; }}
-        .player-card img {{
-            border-radius: 10px; width: 100%; max-width: 180px;
-            border: 3px solid #67b6fb;
-        }}
-        .player-card .divider {{
-            width: 50px; height: 3px; background: #67b6fb;
-            border-radius: 2px; margin: 10px auto;
-        }}
-        .player-card .label {{
-            font-family: {FONT_GRAPHIC} !important;
-            font-size: 0.72rem; color: #78909C;
-            text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
-        }}
-        .player-card .value {{
-            font-family: {FONT_GRAPHIC} !important;
-            font-size: 1.05rem; color: #0D47A1; font-weight: 700; margin-bottom: 10px;
-        }}
-
-        /* ── Sections ── */
-        .section {{
-            border-radius: 12px; overflow: hidden;
-            box-shadow: 0 2px 10px rgba(13,71,161,0.12); margin-bottom: 16px;
-        }}
-        .section-header {{
-            background: #0D47A1; color: white;
-            padding: 10px 20px;
-            font-family: {FONT_DISPLAY} !important;
-            font-size: 0.9rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }}
-        .section-body {{ background: #1E88E5; padding: 14px 20px; }}
-
-        /* ── Badge Table ── */
-        .badge-table {{ width: 100%; border-collapse: collapse; table-layout: auto; }}
-        .badge-table td {{ padding: 8px 8px; vertical-align: middle; }}
-        .badge-table .cell-label {{
-            color: white;
-            font-family: {FONT_GRAPHIC} !important;
-            font-size: 0.88rem; font-weight: 600;
-            text-align: right; padding-right: 10px; white-space: nowrap;
-        }}
-        .badge-table .cell-tag {{ text-align: left; white-space: nowrap; }}
-        .badge-tag {{
-            display: inline-block; padding: 5px 14px; border-radius: 5px;
-            font-family: {FONT_GRAPHIC} !important;
-            font-size: 0.82rem; font-weight: 700; white-space: nowrap;
-            min-width: 90px; text-align: center;
-        }}
-
-        /* ── Text lists ── */
-        .text-list {{ list-style: none; padding: 0; margin: 0; }}
-        .text-list li {{
-            color: white;
-            font-family: {FONT_DOCUMENT} !important;
-            font-size: 0.95rem; font-weight: 600; padding: 5px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.15);
-        }}
-        .text-list li:last-child {{ border-bottom: none; }}
-        .text-list .num {{
-            display: inline-block; width: 24px; height: 24px; line-height: 24px;
-            text-align: center; background: rgba(255,255,255,0.2);
-            border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
-        }}
-
-        /* ── Radar ── */
-        .radar-outer {{
-            background: #0C1F3A; border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-            overflow: hidden; margin-bottom: 16px;
-        }}
-        .radar-title {{
-            background: #0C1F3A; color: white; text-align: center;
-            font-family: {FONT_DISPLAY} !important;
-            font-size: 0.85rem; font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            padding: 14px 12px 0 12px;
-        }}
-        .radar-body {{ background: #0C1F3A; }}
-        .radar-body > div {{ margin: 0 !important; padding: 0 !important; }}
-
-        .no-data-msg {{
-            text-align: center; padding: 40px 20px; color: #78909C; font-size: 1.1rem;
-        }}
-        .eval-meta {{
-            background: rgba(13,71,161,0.06); border-radius: 8px;
-            padding: 8px 16px; margin-top: 8px;
-            font-family: {FONT_DOCUMENT} !important;
-            font-size: 0.85rem; color: #546E7A;
-        }}
-
-        div[data-testid="stSelectbox"] label {{
-            font-weight: 600; color: #0D47A1;
-            font-family: {FONT_GRAPHIC} !important;
-        }}
-        </style>
-        """,
+        '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900'
+        '&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
+    # ── CSS — usando .format() em vez de f-string para evitar conflito de chaves ──
+    _css = """
+    <style>
+    html, body, .stApp, .stApp * {
+        font-family: %(fg)s !important;
+    }
+
+    .block-container {
+        max-width: 1600px !important;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+
+    /* HEADER */
+    .header-bar {
+        background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
+        padding: 20px 36px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 20px rgba(103,182,251,0.30);
+        position: relative;
+        overflow: hidden;
+    }
+    .header-bar::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: url("data:image/svg+xml,%%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cg fill='none' fill-rule='evenodd'%%3E%%3Cg fill='%%23ffffff' fill-opacity='0.06'%%3E%%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'%%2F%%3E%%3C%%2Fg%%3E%%3C%%2Fg%%3E%%3C%%2Fsvg%%3E");
+        pointer-events: none;
+    }
+    .header-bar .header-logo {
+        height: 52px;
+        width: auto;
+        object-fit: contain;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+    }
+    .header-bar .header-text {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        z-index: 1;
+    }
+    .header-bar .brand {
+        font-family: %(fd)s !important;
+        color: rgba(10,42,74,0.55);
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 4px;
+        text-transform: uppercase;
+    }
+    .header-bar h1 {
+        font-family: %(fd)s !important;
+        color: #0a2a4a;
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 900;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+
+    /* PLAYER CARD */
+    .card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(13,71,161,0.12);
+    }
+    .player-card { text-align: center; }
+    .player-card img {
+        border-radius: 10px;
+        width: 100%%;
+        max-width: 180px;
+        border: 3px solid #67b6fb;
+    }
+    .player-card .divider {
+        width: 50px; height: 3px;
+        background: #67b6fb;
+        border-radius: 2px;
+        margin: 10px auto;
+    }
+    .player-card .label {
+        font-family: %(fg)s !important;
+        font-size: 0.72rem;
+        color: #78909C;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+    }
+    .player-card .value {
+        font-family: %(fg)s !important;
+        font-size: 1.05rem;
+        color: #0D47A1;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    /* SECTIONS */
+    .section {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+        margin-bottom: 16px;
+    }
+    .section-header {
+        background: #0D47A1;
+        color: white;
+        padding: 10px 20px;
+        font-family: %(fd)s !important;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .section-body {
+        background: #1E88E5;
+        padding: 14px 20px;
+    }
+
+    /* BADGE TABLE */
+    .badge-table {
+        width: 100%%;
+        border-collapse: collapse;
+        table-layout: auto;
+    }
+    .badge-table td {
+        padding: 8px 8px;
+        vertical-align: middle;
+    }
+    .badge-table .cell-label {
+        color: white;
+        font-family: %(fg)s !important;
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-align: right;
+        padding-right: 10px;
+        white-space: nowrap;
+    }
+    .badge-table .cell-tag {
+        text-align: left;
+        white-space: nowrap;
+    }
+    .badge-tag {
+        display: inline-block;
+        padding: 5px 14px;
+        border-radius: 5px;
+        font-family: %(fg)s !important;
+        font-size: 0.82rem;
+        font-weight: 700;
+        white-space: nowrap;
+        min-width: 90px;
+        text-align: center;
+    }
+
+    /* TEXT LISTS */
+    .text-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .text-list li {
+        color: white;
+        font-family: %(fdo)s !important;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 5px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+    .text-list li:last-child { border-bottom: none; }
+    .text-list .num {
+        display: inline-block;
+        width: 24px; height: 24px;
+        line-height: 24px;
+        text-align: center;
+        background: rgba(255,255,255,0.2);
+        border-radius: 50%%;
+        font-size: 0.8rem;
+        margin-right: 8px;
+    }
+
+    /* RADAR */
+    .radar-outer {
+        background: #0C1F3A;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+    .radar-title {
+        background: #0C1F3A;
+        color: white;
+        text-align: center;
+        font-family: %(fd)s !important;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 14px 12px 0 12px;
+    }
+    .radar-body { background: #0C1F3A; }
+    .radar-body > div { margin: 0 !important; padding: 0 !important; }
+
+    .no-data-msg {
+        text-align: center;
+        padding: 40px 20px;
+        color: #78909C;
+        font-size: 1.1rem;
+    }
+    .eval-meta {
+        background: rgba(13,71,161,0.06);
+        border-radius: 8px;
+        padding: 8px 16px;
+        margin-top: 8px;
+        font-family: %(fdo)s !important;
+        font-size: 0.85rem;
+        color: #546E7A;
+    }
+
+    div[data-testid="stSelectbox"] label {
+        font-weight: 600;
+        color: #0D47A1;
+        font-family: %(fg)s !important;
+    }
+    </style>
+    """ % {"fd": FONT_DISPLAY, "fg": FONT_GRAPHIC, "fdo": FONT_DOCUMENT}
+
+    st.markdown(_css, unsafe_allow_html=True)
+
+    # ── Helpers ──
     def badge_tag(level):
         if not level:
             return ""
         s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
-        return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
+        return '<span class="badge-tag" style="background:' + s["bg"] + ";color:" + s["fg"] + ';">' + level + "</span>"
 
     def render_section(title, body):
-        return (f'<div class="section"><div class="section-header">{title}</div>'
-                f'<div class="section-body">{body}</div></div>')
+        return '<div class="section"><div class="section-header">' + title + '</div><div class="section-body">' + body + "</div></div>"
 
     def render_badges_table(items, cols=4):
         rows = ""
@@ -466,18 +525,20 @@ else:
             cells = ""
             for lb, lv in ri:
                 if lb:
-                    cells += f'<td class="cell-label">{lb}</td><td class="cell-tag">{badge_tag(lv)}</td>'
+                    cells += '<td class="cell-label">' + lb + '</td><td class="cell-tag">' + badge_tag(lv) + "</td>"
                 else:
                     cells += "<td></td><td></td>"
             cells += "<td></td><td></td>" * (cols - len(ri))
-            rows += f"<tr>{cells}</tr>"
-        return f'<table class="badge-table">{rows}</table>'
+            rows += "<tr>" + cells + "</tr>"
+        return '<table class="badge-table">' + rows + "</table>"
 
     def render_list(items):
         if not items:
             return '<span style="color:rgba(255,255,255,0.5);">—</span>'
-        li = "".join(f'<li><span class="num">{i+1}</span>{t}</li>' for i, t in enumerate(items))
-        return f'<ul class="text-list">{li}</ul>'
+        li = ""
+        for i, t in enumerate(items):
+            li += '<li><span class="num">' + str(i + 1) + "</span>" + t + "</li>"
+        return '<ul class="text-list">' + li + "</ul>"
 
     def build_radar(mog_data):
         cats = list(mog_data.keys())
@@ -509,15 +570,12 @@ else:
 
     # ── HEADER ──
     st.markdown(
-        f"""
-        <div class="header-bar">
-            <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
-            <div class="header-text">
-                <span class="brand">SGA Performance</span>
-                <h1>Individual Development Plan</h1>
-            </div>
-        </div>
-        """,
+        '<div class="header-bar">'
+        '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
+        '<div class="header-text">'
+        '<span class="brand">SGA Performance</span>'
+        "<h1>Individual Development Plan</h1>"
+        "</div></div>",
         unsafe_allow_html=True,
     )
 
@@ -535,11 +593,11 @@ else:
     with left_col:
         photo = pr["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
         st.markdown(
-            f'<div class="card player-card">'
-            f'<img src="{photo}" alt="{player_name}">'
-            f'<div class="divider"></div>'
-            f'<div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>'
-            f'<div class="label">Club</div><div class="value">{pr["club"] or "—"}</div></div>',
+            '<div class="card player-card">'
+            '<img src="' + str(photo) + '" alt="' + str(player_name) + '">'
+            '<div class="divider"></div>'
+            '<div class="label">Position</div><div class="value">' + str(pr["position"] or "—") + "</div>"
+            '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>",
             unsafe_allow_html=True,
         )
         if evaluation and evaluation["mog"]:
@@ -582,7 +640,7 @@ else:
             st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])),
                         unsafe_allow_html=True)
         st.markdown(
-            f'<div class="eval-meta">📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; '
-            f'👤 <b>Analista:</b> {evaluation["analyst"]}</div>',
+            '<div class="eval-meta">📅 <b>Avaliação:</b> ' + evaluation["eval_date"]
+            + " &nbsp;•&nbsp; 👤 <b>Analista:</b> " + evaluation["analyst"] + "</div>",
             unsafe_allow_html=True,
         )
