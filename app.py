@@ -118,6 +118,22 @@ def delete_player(player_id: int):
     conn.close()
 
 
+# DB helper: update player (adicionado)
+def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE players SET name = ?, position = ?, club = ?, photo_url = ? WHERE id = ?",
+            (name.strip(), position.strip(), club.strip(), photo_url.strip(), player_id),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        # re-raise para o chamador tratar (ex: mostrar st.error)
+        conn.close()
+        raise
+    conn.close()
+
+
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     conn = get_db()
     cur = conn.cursor()
@@ -318,7 +334,8 @@ elif page == "📚 Jogadores":
         if sel_row["photo_url"]:
             st.image(sel_row["photo_url"], width=160)
 
-        col_view, col_delete = st.columns([1, 1])
+        # Três colunas: ver, apagar, editar
+        col_view, col_delete, col_edit = st.columns([1, 1, 1])
         with col_view:
             if st.button("Ver avaliações deste atleta"):
                 evaluation = get_latest_evaluation(int(sel_row["id"]))
@@ -352,13 +369,31 @@ elif page == "📚 Jogadores":
                         st.write(evaluation["improvements"])
 
         with col_delete:
-            # Corrected: no walrus used; simple checkbox + confirm button flow
             confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
             if confirm:
                 if st.button("Confirmar exclusão"):
                     delete_player(int(sel_row["id"]))
                     st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                     st.experimental_rerun()
+
+        with col_edit:
+            with st.expander("✏️ Editar jogador"):
+                # Form com valores pré-preenchidos
+                with st.form(f"form_edit_{sel_row['id']}"):
+                    new_name = st.text_input("Nome completo *", value=sel_row["name"])
+                    new_position = st.text_input("Posição", value=sel_row["position"] or "")
+                    new_club = st.text_input("Clube", value=sel_row["club"] or "")
+                    new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+                    if st.form_submit_button("💾 Salvar alterações"):
+                        if not new_name.strip():
+                            st.error("Nome é obrigatório.")
+                        else:
+                            try:
+                                update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
+                                st.success(f"✅ Jogador **{new_name}** atualizado com sucesso!")
+                                st.experimental_rerun()
+                            except sqlite3.IntegrityError:
+                                st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
@@ -381,7 +416,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    _css = """
+_css = """
     <style>
     html, body, .stApp, .stApp * {
         font-family: %(fg)s !important;
@@ -525,7 +560,7 @@ else:
             display: inline-block;
             padding: 6px 12px;
             border-radius: 6px;
-            font-family: %(fg)s !important;
+            font-family: %s !important;
             font-size: 0.82rem;
             font-weight: 700;
             white-space: nowrap;
@@ -713,7 +748,7 @@ else:
             '<img src="' + str(photo) + '" alt="' + str(player_name) + '">'
             '<div class="divider"></div>'
             '<div class="label">Position</div><div class="value">' + str(pr["position"] or "—") + "</div>"
-            '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>",
+            '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>',
             unsafe_allow_html=True,
         )
 
