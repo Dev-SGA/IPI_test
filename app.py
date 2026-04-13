@@ -1,5 +1,6 @@
 # app.py
 import os
+import time
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -53,8 +54,8 @@ LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 # Helper: trigger safe rerun (avoid st.experimental_rerun() in nested contexts)
 # ---------------------------
 def trigger_rerun():
-    # change query params to force Streamlit to rerun the script
-    st.experimental_set_query_params(_refresh=int(datetime.utcnow().timestamp()))
+    # use time.time() to avoid relying on datetime import order
+    st.experimental_set_query_params(_refresh=int(time.time()))
 
 
 # ---------------------------
@@ -74,6 +75,7 @@ def try_login(password: str) -> bool:
 
 def logout_admin():
     st.session_state["admin_authenticated"] = False
+
 
 # ---------------------------
 # Database helpers
@@ -237,6 +239,7 @@ def get_latest_evaluation(player_id):
     return {"id": eid, "analyst": ev["analyst"], "eval_date": ev["eval_date"], "skills": skills, "mog": mog,
             "strengths": strengths, "improvements": improvements}
 
+
 # ---------------------------
 # UI: Sidebar Admin area
 # ---------------------------
@@ -255,10 +258,12 @@ with st.sidebar.expander("Admin"):
             else:
                 st.error("Senha incorreta.")
 
+
 # ---------------------------
 # UI: Sidebar navigation
 # ---------------------------
 page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador", "📚 Jogadores"])
+
 
 # ---------------------------
 # Page: Cadastrar Jogador (protected)
@@ -286,6 +291,7 @@ if page == "➕ Cadastrar Jogador":
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
                 trigger_rerun()
+
 
 # ---------------------------
 # Page: Nova Avaliação
@@ -383,6 +389,7 @@ elif page == "📝 Nova Avaliação":
                 )
                 st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
+
 
 # ---------------------------
 # Page: Jogadores (lista / ações) - Edit card aligned left and protected
@@ -632,6 +639,7 @@ elif page == "📚 Jogadores":
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
         st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
+
 
 # ---------------------------
 # Page: Dashboard (full)
