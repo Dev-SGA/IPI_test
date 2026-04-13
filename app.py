@@ -9,7 +9,7 @@ import base64
 from pathlib import Path
 from datetime import date, datetime
 
-st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="SGA - IPI", page_icon="⚽", layout="wide")
 
 DB_PATH = "sga_evaluations.db"
 
@@ -971,7 +971,7 @@ else:
         <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
             <div class="header-sep"></div>
-            <h1>Individual Development Plan</h1>
+            <h1>Individual Player Indicators</h1>
         </div>
         ''', unsafe_allow_html=True)
 
