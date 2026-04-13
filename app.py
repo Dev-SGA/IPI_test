@@ -50,15 +50,21 @@ MOG_CATEGORIES = [
 LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
 # ---------------------------
+# Helper: trigger safe rerun (avoid st.experimental_rerun() in nested contexts)
+# ---------------------------
+def trigger_rerun():
+    # change query params to force Streamlit to rerun the script
+    st.experimental_set_query_params(_refresh=int(datetime.utcnow().timestamp()))
+
+
+# ---------------------------
 # Session helpers (auth)
 # ---------------------------
 if "admin_authenticated" not in st.session_state:
     st.session_state["admin_authenticated"] = False
 
-
 def is_admin() -> bool:
     return bool(st.session_state.get("admin_authenticated", False))
-
 
 def try_login(password: str) -> bool:
     if password == ADMIN_PASSWORD:
@@ -66,10 +72,8 @@ def try_login(password: str) -> bool:
         return True
     return False
 
-
 def logout_admin():
     st.session_state["admin_authenticated"] = False
-
 
 # ---------------------------
 # Database helpers
@@ -78,7 +82,6 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     conn = get_db()
@@ -116,16 +119,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
-
 
 def get_players():
     conn = get_db()
     df = pd.read_sql("SELECT * FROM players ORDER BY name", conn)
     conn.close()
     return df
-
 
 def add_player(name, position, club, photo_url):
     conn = get_db()
@@ -134,7 +134,6 @@ def add_player(name, position, club, photo_url):
     conn.commit()
     conn.close()
 
-
 def delete_player(player_id: int):
     conn = get_db()
     cur = conn.cursor()
@@ -142,7 +141,6 @@ def delete_player(player_id: int):
     cur.execute("DELETE FROM players WHERE id = ?", (player_id,))
     conn.commit()
     conn.close()
-
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     conn = get_db()
@@ -156,7 +154,6 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
         conn.close()
         raise
     conn.close()
-
 
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     conn = get_db()
@@ -183,13 +180,11 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
     conn.close()
     return eid
 
-
 def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
     conn = get_db()
     conn.execute("UPDATE evaluations SET analyst = ?, eval_date = ? WHERE id = ?", (analyst, eval_date, evaluation_id))
     conn.commit()
     conn.close()
-
 
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
     conn = get_db()
@@ -218,7 +213,6 @@ def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, stre
     conn.commit()
     conn.close()
 
-
 def get_latest_evaluation(player_id):
     conn = get_db()
     cur = conn.cursor()
@@ -243,7 +237,6 @@ def get_latest_evaluation(player_id):
     return {"id": eid, "analyst": ev["analyst"], "eval_date": ev["eval_date"], "skills": skills, "mog": mog,
             "strengths": strengths, "improvements": improvements}
 
-
 # ---------------------------
 # UI: Sidebar Admin area
 # ---------------------------
@@ -252,22 +245,20 @@ with st.sidebar.expander("Admin"):
         st.success("🔐 Autenticado como admin")
         if st.button("Logout", use_container_width=True):
             logout_admin()
-            st.experimental_rerun()
+            trigger_rerun()
     else:
         pwd = st.text_input("Senha de administrador", type="password")
         if st.button("Entrar", use_container_width=True):
             if try_login(pwd):
                 st.success("Autenticado com sucesso.")
-                st.experimental_rerun()
+                trigger_rerun()
             else:
                 st.error("Senha incorreta.")
-
 
 # ---------------------------
 # UI: Sidebar navigation
 # ---------------------------
 page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador", "📚 Jogadores"])
-
 
 # ---------------------------
 # Page: Cadastrar Jogador (protected)
@@ -294,8 +285,7 @@ if page == "➕ Cadastrar Jogador":
             else:
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
-                st.experimental_rerun()
-
+                trigger_rerun()
 
 # ---------------------------
 # Page: Nova Avaliação
@@ -394,7 +384,6 @@ elif page == "📝 Nova Avaliação":
                 st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
 
-
 # ---------------------------
 # Page: Jogadores (lista / ações) - Edit card aligned left and protected
 # ---------------------------
@@ -430,7 +419,7 @@ elif page == "📚 Jogadores":
                 if st.button("Entrar (rápido)", use_container_width=True):
                     if try_login(quick_pwd):
                         st.success("Autenticado como admin.")
-                        st.experimental_rerun()
+                        trigger_rerun()
                     else:
                         st.error("Senha incorreta.")
                 # show basic info but hide edit card
@@ -585,7 +574,7 @@ elif page == "📚 Jogadores":
                                             improvements=improvements_payload,
                                         )
                                         st.success("✅ Jogador atualizado e nova avaliação criada!")
-                                st.experimental_rerun()
+                                trigger_rerun()
                             except sqlite3.IntegrityError:
                                 st.error("Já existe um jogador com esse nome. Escolha outro nome.")
                 st.markdown("</div>", unsafe_allow_html=True)
@@ -597,7 +586,7 @@ elif page == "📚 Jogadores":
                     if st.button("Confirmar exclusão"):
                         delete_player(int(sel_row["id"]))
                         st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
-                        st.experimental_rerun()
+                        trigger_rerun()
 
         # RIGHT: Details / Radar / Meta (visual)
         with right_col:
@@ -643,7 +632,6 @@ elif page == "📚 Jogadores":
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
         st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
-
 
 # ---------------------------
 # Page: Dashboard (full)
@@ -885,7 +873,6 @@ else:
     """
 
     _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
-
     st.markdown(_css, unsafe_allow_html=True)
 
     # Helpers reused in dashboard
