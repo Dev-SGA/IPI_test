@@ -1,6 +1,5 @@
 import streamlit as st
 import plotly.graph_objects as go
-import pandas as pd
 
 # ──────────────────────────────────────────────
 # CONFIGURAÇÃO DA PÁGINA
@@ -74,7 +73,7 @@ COLORS = {
     "page_bg_start": "#e8eef7",
     "page_bg_end":   "#d0dff0",
     "radar_bg":      "#0C1F3A",
-    "radar_fill":    "rgba(30,136,229,0.40)",
+    "radar_fill":    "rgba(100,181,246,0.30)",
     "radar_line":    "#64B5F6",
 }
 
@@ -123,7 +122,7 @@ st.markdown(
         font-size: 1.65rem; font-weight: 800;
     }}
 
-    /* ── Card ── */
+    /* ── Player Card ── */
     .card {{
         background: {COLORS['card_bg']};
         border-radius: 12px; padding: 20px;
@@ -150,7 +149,7 @@ st.markdown(
         font-weight: 700; margin-bottom: 10px;
     }}
 
-    /* ── Section ── */
+    /* ── Section (blue panels) ── */
     .section {{
         border-radius: 12px; overflow: hidden;
         box-shadow: 0 2px 10px {COLORS['card_shadow']};
@@ -166,7 +165,7 @@ st.markdown(
         padding: 14px 10px;
     }}
 
-    /* ── Badge Table (alinhamento fixo) ── */
+    /* ── Badge Table ── */
     .badge-table {{
         width: 100%;
         border-collapse: collapse;
@@ -216,14 +215,19 @@ st.markdown(
         border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
     }}
 
-    /* ── Radar ── */
-    .radar-wrapper {{
+    /* ── Radar: remove gaps do Streamlit ── */
+    .radar-container {{
         background: {COLORS['radar_bg']};
-        border-radius: 0 0 12px 12px;
-        padding: 16px 12px 12px 12px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px {COLORS['card_shadow']};
+        overflow: hidden;
+        margin-bottom: 16px;
+    }}
+    .radar-container .stPlotlyChart {{
+        margin: 0 !important;
+        padding: 0 !important;
     }}
 
-    /* ── Streamlit overrides ── */
     div[data-testid="stSelectbox"] label {{
         font-weight: 600; color: {COLORS['primary']};
     }}
@@ -253,12 +257,6 @@ def render_section(title: str, body_html: str) -> str:
 
 
 def render_badges_table(items: list, cols: int = 4) -> str:
-    """
-    Recebe lista de tuplas (label, level).
-    Renderiza numa tabela com `cols` pares de colunas (label + tag),
-    todas com largura fixa para alinhar verticalmente entre seções.
-    """
-    # colgroup: cada par = label (flex) + tag (fixa)
     col_defs = ""
     for _ in range(cols):
         col_defs += '<col style="width:auto"><col style="width:100px">'
@@ -273,7 +271,6 @@ def render_badges_table(items: list, cols: int = 4) -> str:
                 cells += f'<td class="cell-tag">{badge_tag(level)}</td>'
             else:
                 cells += "<td></td><td></td>"
-        # Preenche restante
         remaining = cols - len(row_items)
         cells += "<td></td><td></td>" * remaining
         rows_html += f"<tr>{cells}</tr>"
@@ -287,6 +284,65 @@ def render_list(items: list) -> str:
         for i, text in enumerate(items)
     )
     return f'<ul class="text-list">{li}</ul>'
+
+
+def build_radar_chart(mog_data: dict) -> go.Figure:
+    """Cria o radar com título embutido no Plotly — zero HTML externo."""
+    categories = list(mog_data.keys())
+    values = list(mog_data.values())
+    categories_closed = categories + [categories[0]]
+    values_closed = values + [values[0]]
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatterpolar(
+            r=values_closed,
+            theta=categories_closed,
+            fill="toself",
+            fillcolor=COLORS["radar_fill"],
+            line=dict(color=COLORS["radar_line"], width=2.5),
+            marker=dict(size=6, color=COLORS["radar_line"]),
+            hovertemplate="%{theta}: %{r}<extra></extra>",
+        )
+    )
+
+    fig.update_layout(
+        # Título embutido no próprio gráfico
+        title=dict(
+            text="<b>MoG – Moments of the Game</b>",
+            font=dict(size=16, color="white", family="Arial, sans-serif"),
+            x=0.5,
+            xanchor="center",
+            y=0.97,
+            yanchor="top",
+            pad=dict(t=0, b=0),
+        ),
+        polar=dict(
+            bgcolor="rgba(255,255,255,0.03)",
+            domain=dict(x=[0.05, 0.95], y=[0, 0.88]),
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                showticklabels=False,
+                gridcolor="rgba(255,255,255,0.10)",
+                linecolor="rgba(255,255,255,0.05)",
+            ),
+            angularaxis=dict(
+                gridcolor="rgba(255,255,255,0.10)",
+                linecolor="rgba(255,255,255,0.12)",
+                tickfont=dict(size=12, color="#B0BEC5", family="Arial, sans-serif"),
+                rotation=90,
+            ),
+        ),
+        paper_bgcolor=COLORS["radar_bg"],
+        plot_bgcolor=COLORS["radar_bg"],
+        showlegend=False,
+        margin=dict(l=12, r=12, t=50, b=12),
+        height=380,
+    )
+
+    return fig
 
 
 # ──────────────────────────────────────────────
@@ -305,19 +361,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ───────���──────────────────────────────────────
-# SELETOR DE JOGADOR
+# ──────────────────────────────────────────────
+# SELETOR
 # ──────────────────────────────────────────────
 player_name = st.selectbox("Select Player", list(PLAYERS.keys()))
 p = PLAYERS[player_name]
 
 # ──────────────────────────────────────────────
-# LAYOUT PRINCIPAL
+# LAYOUT
 # ──────────────────────────────────────────────
 left_col, right_col = st.columns([1, 3], gap="large")
 
-# ── COLUNA ESQUERDA ──
 with left_col:
+    # Player Card
     st.markdown(
         f"""
         <div class="card player-card">
@@ -334,65 +390,23 @@ with left_col:
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # Radar
-    categories = list(p["mog"].keys())
-    values = list(p["mog"].values())
-    categories_closed = categories + [categories[0]]
-    values_closed = values + [values[0]]
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatterpolar(
-            r=values_closed,
-            theta=categories_closed,
-            fill="toself",
-            fillcolor=COLORS["radar_fill"],
-            line=dict(color=COLORS["radar_line"], width=2.5),
-            marker=dict(size=6, color=COLORS["radar_line"]),
-            hovertemplate="%{theta}: %{r}<extra></extra>",
-        )
+    # Radar — componente único, sem HTML wrapper separado
+    radar_fig = build_radar_chart(p["mog"])
+    st.markdown('<div class="radar-container">', unsafe_allow_html=True)
+    st.plotly_chart(
+        radar_fig,
+        use_container_width=True,
+        config={"displayModeBar": False},
     )
-    fig.update_layout(
-        polar=dict(
-            bgcolor="rgba(255,255,255,0.04)",
-            radialaxis=dict(
-                visible=True, range=[0, 100],
-                showticklabels=False,
-                gridcolor="rgba(255,255,255,0.12)",
-                linecolor="rgba(255,255,255,0.05)",
-            ),
-            angularaxis=dict(
-                gridcolor="rgba(255,255,255,0.12)",
-                linecolor="rgba(255,255,255,0.15)",
-                tickfont=dict(size=11, color="#B0BEC5"),
-            ),
-        ),
-        paper_bgcolor=COLORS["radar_bg"],
-        plot_bgcolor=COLORS["radar_bg"],
-        showlegend=False,
-        margin=dict(l=50, r=50, t=30, b=30),
-        height=320,
-    )
-
-    st.markdown(
-        '<div class="section">'
-        '  <div class="section-header">MoG – Moments of the Game</div>'
-        '  <div class="radar-wrapper">',
-        unsafe_allow_html=True,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
-# ── COLUNA DIREITA ──
 with right_col:
-    # Technical (8 itens → 2 linhas × 4 colunas)
     st.markdown(
         render_section("Technical", render_badges_table(p["technical"], cols=4)),
         unsafe_allow_html=True,
     )
 
-    # Player-Specific (padded to 4 slots so columns align)
     st.markdown(
         render_section(
             "Player-Specific Indicators",
@@ -401,13 +415,11 @@ with right_col:
         unsafe_allow_html=True,
     )
 
-    # Mental (padded to 4 slots)
     st.markdown(
         render_section("Mental", render_badges_table(p["mental"], cols=4)),
         unsafe_allow_html=True,
     )
 
-    # Strengths & Improve
     s_col, i_col = st.columns(2, gap="medium")
     with s_col:
         st.markdown(
