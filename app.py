@@ -381,7 +381,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    _css = """
+_css = """
     <style>
     html, body, .stApp, .stApp * {
         font-family: %(fg)s !important;
