@@ -694,7 +694,7 @@ else:
         pointer-events: none;
     }
     .block-container .header-bar .header-logo {
-        height: 96px;
+        height: 126px;
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
