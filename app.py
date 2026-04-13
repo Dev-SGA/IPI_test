@@ -1,4 +1,4 @@
-# app.py
+# app.py (v11) - imagens com tamanho fixo
 import os
 import time
 import streamlit as st
@@ -9,12 +9,16 @@ import base64
 from pathlib import Path
 from datetime import date, datetime
 
-st.set_page_config(page_title="SGA - IPI", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
 DB_PATH = "sga_evaluations.db"
 
 # Admin password read from environment (fallback default)
 ADMIN_PASSWORD = os.getenv("SGA_ADMIN_PASSWORD", "changeme")
+
+# Padrão de tamanho das fotos dos jogadores (px)
+PLAYER_IMG_W = 180
+PLAYER_IMG_H = 240
 
 # Logo sources (local base64 fallback to URL)
 LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
@@ -59,7 +63,6 @@ def trigger_rerun():
     try:
         st.experimental_set_query_params(_refresh=int(time.time()))
     except Exception:
-        # fallback - store a token so state changed (won't immediately rerun, but avoids crash)
         st.session_state["_refresh_token"] = int(time.time())
 
 
@@ -262,7 +265,6 @@ with st.sidebar.expander("Admin"):
             # already causes a rerun; calling the helper can race on some systems.
             if try_login(pwd):
                 st.success("Autenticado com sucesso.")
-                # no explicit rerun here; Streamlit will rerun after button click
             else:
                 st.error("Senha incorreta.")
 
@@ -298,7 +300,6 @@ if page == "➕ Cadastrar Jogador":
             else:
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
-                # safe rerun helper (wrapped in try)
                 trigger_rerun()
 
 
@@ -435,14 +436,16 @@ elif page == "📚 Jogadores":
                 if st.button("Entrar (rápido)", use_container_width=True):
                     if try_login(quick_pwd):
                         st.success("Autenticado como admin.")
-                        # no explicit trigger_rerun here; button click triggers rerun
                     else:
                         st.error("Senha incorreta.")
                 # show basic info but hide edit card
                 st.markdown(f"**Nome:** {sel_row['name']}")
                 st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
                 if sel_row["photo_url"]:
-                    st.image(sel_row["photo_url"], width=160)
+                    st.markdown(
+                        f'<img src="{sel_row["photo_url"]}" alt="player" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:10px;border:3px solid #67b6fb;display:block;margin:0 auto;">',
+                        unsafe_allow_html=True,
+                    )
             else:
                 # admin: show full edit card (edita TODOS os atributos, inclusive avaliação)
                 st.markdown('<div class="block-container card" style="padding:12px">', unsafe_allow_html=True)
@@ -454,6 +457,13 @@ elif page == "📚 Jogadores":
                     new_position = st.text_input("Posição", value=sel_row["position"] or "")
                     new_club = st.text_input("Clube", value=sel_row["club"] or "")
                     new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+
+                    # Preview da foto (fixa)
+                    if new_photo.strip():
+                        st.markdown(
+                            f'<div style="text-align:center;margin-bottom:8px;"><img src="{new_photo.strip()}" alt="preview" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:8px;border:2px solid rgba(0,0,0,0.08);"></div>',
+                            unsafe_allow_html=True,
+                        )
 
                     st.divider()
                     st.markdown("**Avaliação (editar última ou criar nova)**")
@@ -610,7 +620,10 @@ elif page == "📚 Jogadores":
             st.markdown(f"**Nome:** {sel_row['name']}")
             st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
             if sel_row["photo_url"]:
-                st.image(sel_row["photo_url"], width=180)
+                st.markdown(
+                    f'<img src="{sel_row["photo_url"]}" alt="player" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:10px;border:3px solid #67b6fb;display:block;margin:0 auto;">',
+                    unsafe_allow_html=True,
+                )
 
             if evaluation and evaluation.get("mog"):
                 st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
@@ -694,7 +707,7 @@ else:
         pointer-events: none;
     }
     .block-container .header-bar .header-logo {
-        height: 126px;
+        height: 96px;
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
@@ -732,9 +745,12 @@ else:
     .block-container .player-card { text-align: center; }
     .block-container .player-card img {
         border-radius: 10px;
-        width: 100%;
-        max-width: 180px;
+        width: __IMG_W__px;
+        height: __IMG_H__px;
+        object-fit: cover;
         border: 3px solid #67b6fb;
+        display: block;
+        margin: 0 auto;
     }
     .block-container .player-card .divider {
         width: 50px; height: 3px;
@@ -885,6 +901,7 @@ else:
     """
 
     _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
+    _css = _css.replace("__IMG_W__", str(PLAYER_IMG_W)).replace("__IMG_H__", str(PLAYER_IMG_H))
     st.markdown(_css, unsafe_allow_html=True)
 
     # Helpers reused in dashboard
@@ -971,7 +988,7 @@ else:
         <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
             <div class="header-sep"></div>
-            <h1>Individual Player Indicators</h1>
+            <h1>Individual Development Plan</h1>
         </div>
         ''', unsafe_allow_html=True)
 
@@ -987,15 +1004,20 @@ else:
     left_col, right_col = st.columns([1, 3], gap="large")
 
     with left_col:
-        photo = pr["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
-        st.markdown(f'''
-            <div class="block-container card player-card">
-                <img src="{photo}" alt="{player_name}">
-                <div class="divider"></div>
-                <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
-                <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
-            </div>
-            ''', unsafe_allow_html=True)
+        photo = pr["photo_url"] or ""
+        if photo:
+            st.markdown(
+                f'<div class="block-container card player-card"><img src="{photo}" alt="{player_name}"><div class="divider"></div><div class="label">Position</div><div class="value">{pr["position"] or "—"}</div><div class="label">Club</div><div class="value">{pr["club"] or "—"}</div></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(f'''
+                <div class="block-container card player-card">
+                    <div class="divider"></div>
+                    <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
+                    <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
+                </div>
+                ''', unsafe_allow_html=True)
 
         if evaluation and evaluation["mog"]:
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
