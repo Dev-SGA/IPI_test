@@ -330,6 +330,7 @@ elif page == "📚 Jogadores":
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
 
         # Layout: left = view / delete actions, right = edit form (aligned with "Ações")
+        # Using two columns so edit card sits aligned with Actions and is always visible
         left_col, right_col = st.columns([2, 1], gap="large")
 
         # Left column: display basic info and view/delete actions
@@ -391,6 +392,14 @@ elif page == "📚 Jogadores":
                 new_position = st.text_input("Posição", value=sel_row["position"] or "")
                 new_club = st.text_input("Clube", value=sel_row["club"] or "")
                 new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+
+                # Optional: preview the photo URL entered (helps confirm before saving)
+                if new_photo.strip():
+                    try:
+                        st.image(new_photo.strip(), width=160)
+                    except Exception:
+                        # if image can't be loaded, ignore silently (avoid crashing)
+                        pass
 
                 submitted = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
                 if submitted:
