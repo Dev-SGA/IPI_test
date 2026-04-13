@@ -15,7 +15,6 @@ TECHNICAL_SKILLS = [
     "General Passing", "1st Touch", "Head. Direction", "1v1 Defending",
     "Crossing", "1v1 Attacking", "Aerials Duels", "Off Ball Def.",
 ]
-PLAYER_SPECIFIC_SKILLS = ["Finishing", "Long Ball"]
 MENTAL_SKILLS = ["Awareness", "Effort", "Team Work"]
 MOG_CATEGORIES = [
     "Off. Possession", "Off. Transition", "Def. Organization",
@@ -56,9 +55,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS eval_skills (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL,
-            category      TEXT NOT NULL,   -- 'technical', 'player_specific', 'mental'
+            category      TEXT NOT NULL,
             skill_name    TEXT NOT NULL,
-            level         TEXT NOT NULL,    -- 'Good', 'Average', etc.
+            level         TEXT NOT NULL,
             FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
         );
 
@@ -66,15 +65,15 @@ def init_db():
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL,
             category      TEXT NOT NULL,
-            value         INTEGER NOT NULL, -- 0-100
+            value         INTEGER NOT NULL,
             FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
         );
 
         CREATE TABLE IF NOT EXISTS eval_notes (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL,
-            note_type     TEXT NOT NULL,    -- 'strength' or 'improve'
-            position      INTEGER NOT NULL, -- 1, 2, 3
+            note_type     TEXT NOT NULL,
+            position      INTEGER NOT NULL,
             text          TEXT NOT NULL,
             FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
         );
@@ -96,7 +95,7 @@ def get_players() -> pd.DataFrame:
     return df
 
 
-def add_player(name: str, position: str, club: str, photo_url: str):
+def add_player(name, position, club, photo_url):
     conn = get_db()
     conn.execute(
         "INSERT OR IGNORE INTO players (name, position, club, photo_url) VALUES (?, ?, ?, ?)",
@@ -106,41 +105,30 @@ def add_player(name: str, position: str, club: str, photo_url: str):
     conn.close()
 
 
-def save_evaluation(
-    player_id: int,
-    analyst: str,
-    eval_date: str,
-    skills: dict,          # {category: {skill_name: level}}
-    mog: dict,             # {category: value}
-    strengths: list,
-    improvements: list,
-):
+def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     conn = get_db()
     cur = conn.cursor()
-
     cur.execute(
         "INSERT INTO evaluations (player_id, analyst, eval_date) VALUES (?, ?, ?)",
         (player_id, analyst, eval_date),
     )
     eval_id = cur.lastrowid
 
-    # Skills
     for category, skill_dict in skills.items():
         for skill_name, level in skill_dict.items():
-            cur.execute(
-                "INSERT INTO eval_skills (evaluation_id, category, skill_name, level) "
-                "VALUES (?, ?, ?, ?)",
-                (eval_id, category, skill_name, level),
-            )
+            if skill_name.strip() and level.strip():
+                cur.execute(
+                    "INSERT INTO eval_skills (evaluation_id, category, skill_name, level) "
+                    "VALUES (?, ?, ?, ?)",
+                    (eval_id, category, skill_name, level),
+                )
 
-    # MoG
     for cat, val in mog.items():
         cur.execute(
             "INSERT INTO eval_mog (evaluation_id, category, value) VALUES (?, ?, ?)",
             (eval_id, cat, val),
         )
 
-    # Notes
     for i, text in enumerate(strengths):
         if text.strip():
             cur.execute(
@@ -161,11 +149,9 @@ def save_evaluation(
     return eval_id
 
 
-def get_latest_evaluation(player_id: int) -> dict | None:
-    """Retorna a avaliação mais recente de um jogador."""
+def get_latest_evaluation(player_id):
     conn = get_db()
     cur = conn.cursor()
-
     cur.execute(
         "SELECT * FROM evaluations WHERE player_id = ? ORDER BY eval_date DESC, id DESC LIMIT 1",
         (player_id,),
@@ -177,7 +163,6 @@ def get_latest_evaluation(player_id: int) -> dict | None:
 
     eval_id = ev["id"]
 
-    # Skills
     skills = {}
     for row in cur.execute(
         "SELECT category, skill_name, level FROM eval_skills WHERE evaluation_id = ?",
@@ -185,16 +170,13 @@ def get_latest_evaluation(player_id: int) -> dict | None:
     ):
         skills.setdefault(row["category"], {})[row["skill_name"]] = row["level"]
 
-    # MoG
     mog = {}
     for row in cur.execute(
         "SELECT category, value FROM eval_mog WHERE evaluation_id = ?", (eval_id,),
     ):
         mog[row["category"]] = row["value"]
 
-    # Notes
-    strengths = []
-    improvements = []
+    strengths, improvements = [], []
     for row in cur.execute(
         "SELECT note_type, position, text FROM eval_notes WHERE evaluation_id = ? ORDER BY position",
         (eval_id,),
@@ -205,7 +187,6 @@ def get_latest_evaluation(player_id: int) -> dict | None:
             improvements.append(row["text"])
 
     conn.close()
-
     return {
         "analyst": ev["analyst"],
         "eval_date": ev["eval_date"],
@@ -217,60 +198,51 @@ def get_latest_evaluation(player_id: int) -> dict | None:
 
 
 # ──────────────────────────────────────────────
-# INTERFACE: NAVEGAÇÃO
+# NAVEGAÇÃO
 # ──────────────────────────────────────────────
 page = st.sidebar.radio(
     "Navegação",
     ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador"],
-    index=0,
 )
 
 # ══════════════════════════════════════════════
-# PÁGINA: CADASTRAR JOGADOR
+# CADASTRAR JOGADOR
 # ══════════════════════════════════════════════
 if page == "➕ Cadastrar Jogador":
     st.header("Cadastrar Novo Jogador")
-
     with st.form("form_player"):
-        col1, col2 = st.columns(2)
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             name = st.text_input("Nome completo *")
             position = st.text_input("Posição", placeholder="Ex: Left Winger")
-        with col2:
+        with c2:
             club = st.text_input("Clube", placeholder="Ex: Houston Dynamo")
             photo_url = st.text_input("URL da foto", placeholder="https://...")
-
-        submitted = st.form_submit_button("💾 Cadastrar", use_container_width=True)
-
-        if submitted:
+        if st.form_submit_button("💾 Cadastrar", use_container_width=True):
             if not name.strip():
                 st.error("Nome é obrigatório.")
             else:
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
-                st.success(f"✅ Jogador **{name}** cadastrado com sucesso!")
+                st.success(f"✅ Jogador **{name}** cadastrado!")
 
 
 # ══════════════════════════════════════════════
-# PÁGINA: NOVA AVALIAÇÃO
+# NOVA AVALIAÇÃO
 # ══════════════════════════════════════════════
 elif page == "📝 Nova Avaliação":
     st.header("Nova Avaliação")
-
     players_df = get_players()
     if players_df.empty:
         st.warning("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador** primeiro.")
         st.stop()
 
     with st.form("form_evaluation"):
-        # ── Cabeçalho ──
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            player_name = st.selectbox(
-                "Jogador", players_df["name"].tolist()
-            )
-        with col_b:
+        ca, cb, cc = st.columns(3)
+        with ca:
+            player_name = st.selectbox("Jogador", players_df["name"].tolist())
+        with cb:
             analyst = st.text_input("Nome do Analista *")
-        with col_c:
+        with cc:
             eval_date = st.date_input("Data da Avaliação", value=date.today())
 
         st.divider()
@@ -281,21 +253,34 @@ elif page == "📝 Nova Avaliação":
         tech_values = {}
         for i, skill in enumerate(TECHNICAL_SKILLS):
             with tech_cols[i % 4]:
-                tech_values[skill] = st.selectbox(
-                    skill, LEVELS, key=f"tech_{skill}"
-                )
+                tech_values[skill] = st.selectbox(skill, LEVELS, key=f"tech_{skill}")
 
         st.divider()
 
-        # ── Player-Specific ──
+        # ── Player-Specific (customizável) ──
         st.subheader("⚡ Player-Specific Indicators")
-        ps_cols = st.columns(4)
+        st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
+
         ps_values = {}
-        for i, skill in enumerate(PLAYER_SPECIFIC_SKILLS):
-            with ps_cols[i % 4]:
-                ps_values[skill] = st.selectbox(
-                    skill, LEVELS, key=f"ps_{skill}"
+        num_ps = 4
+        ps_cols_name = st.columns(num_ps)
+        ps_cols_level = st.columns(num_ps)
+
+        for i in range(num_ps):
+            with ps_cols_name[i]:
+                attr_name = st.text_input(
+                    f"Atributo {i + 1}",
+                    key=f"ps_name_{i}",
+                    placeholder=f"Ex: Speed, Defense...",
                 )
+            with ps_cols_level[i]:
+                attr_level = st.selectbox(
+                    f"Nível {i + 1}",
+                    [""] + LEVELS,
+                    key=f"ps_level_{i}",
+                )
+            if attr_name.strip() and attr_level:
+                ps_values[attr_name.strip()] = attr_level
 
         st.divider()
 
@@ -305,9 +290,7 @@ elif page == "📝 Nova Avaliação":
         m_values = {}
         for i, skill in enumerate(MENTAL_SKILLS):
             with m_cols[i % 4]:
-                m_values[skill] = st.selectbox(
-                    skill, LEVELS, key=f"m_{skill}"
-                )
+                m_values[skill] = st.selectbox(skill, LEVELS, key=f"m_{skill}")
 
         st.divider()
 
@@ -336,19 +319,13 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
-        submitted = st.form_submit_button(
-            "💾 Salvar Avaliação", use_container_width=True
-        )
-
-        if submitted:
+        if st.form_submit_button("💾 Salvar Avaliação", use_container_width=True):
             if not analyst.strip():
                 st.error("Nome do analista é obrigatório.")
             else:
-                player_id = int(
-                    players_df.loc[players_df["name"] == player_name, "id"].iloc[0]
-                )
+                pid = int(players_df.loc[players_df["name"] == player_name, "id"].iloc[0])
                 save_evaluation(
-                    player_id=player_id,
+                    player_id=pid,
                     analyst=analyst.strip(),
                     eval_date=eval_date.isoformat(),
                     skills={
@@ -360,17 +337,14 @@ elif page == "📝 Nova Avaliação":
                     strengths=[s1, s2, s3],
                     improvements=[i1, i2, i3],
                 )
-                st.success(
-                    f"✅ Avaliação de **{player_name}** salva com sucesso!"
-                )
+                st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
 
 
 # ══════════════════════════════════════════════
-# PÁGINA: DASHBOARD
+# DASHBOARD
 # ══════════════════════════════════════════════
 else:
-    # ── Estilos (mesmo CSS das versões anteriores) ──
     BADGE_STYLES = {
         "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
         "Good":        {"bg": "#2E7D32", "fg": "#FFFFFF"},
@@ -424,18 +398,28 @@ else:
             background: #0D47A1; color: white;
             padding: 10px 20px; font-size: 1.05rem; font-weight: 700;
         }
-        .section-body { background: #1E88E5; padding: 14px 10px; }
+        .section-body { background: #1E88E5; padding: 14px 16px; }
+
+        /* ── Badge Table — larguras fixas ── */
         .badge-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .badge-table td { padding: 8px 6px; vertical-align: middle; }
+        .badge-table td { padding: 8px 4px; vertical-align: middle; }
         .badge-table .cell-label {
             color: white; font-size: 0.88rem; font-weight: 500;
             text-align: right; padding-right: 8px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
-        .badge-table .cell-tag { text-align: left; width: 100px; }
+        .badge-table .cell-tag { text-align: left; width: 110px; }
         .badge-tag {
-            display: inline-block; padding: 4px 12px; border-radius: 5px;
-            font-size: 0.78rem; font-weight: 700; min-width: 80px; text-align: center;
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            white-space: nowrap;   /* ← NUNCA quebra linha */
+            min-width: 90px;
+            text-align: center;
         }
+
         .text-list { list-style: none; padding: 0; margin: 0; }
         .text-list li {
             color: white; font-size: 0.95rem; font-weight: 600; padding: 5px 0;
@@ -456,41 +440,68 @@ else:
         .no-data-msg {
             text-align: center; padding: 40px 20px; color: #78909C; font-size: 1.1rem;
         }
+        .eval-meta {
+            background: rgba(13,71,161,0.06); border-radius: 8px;
+            padding: 8px 16px; margin-top: 8px;
+            font-size: 0.85rem; color: #546E7A;
+        }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    # Helper functions
+    # ── Helpers ──
     def badge_tag(level):
         if not level:
             return ""
         s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
-        return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
+        return (
+            f'<span class="badge-tag" '
+            f'style="background:{s["bg"]};color:{s["fg"]};">'
+            f"{level}</span>"
+        )
 
     def render_section(title, body_html):
-        return f'<div class="section"><div class="section-header">{title}</div><div class="section-body">{body_html}</div></div>'
+        return (
+            f'<div class="section">'
+            f'<div class="section-header">{title}</div>'
+            f'<div class="section-body">{body_html}</div>'
+            f"</div>"
+        )
 
     def render_badges_table(items, cols=4):
-        col_defs = ('<col style="width:auto"><col style="width:100px">') * cols
+        # Cada col-pair: label column (flexible) + tag column (fixed 110px)
+        col_defs = ('<col style="width:auto"><col style="width:110px">') * cols
         rows_html = ""
         for rs in range(0, len(items), cols):
-            ri = items[rs : rs + cols]
+            ri = items[rs: rs + cols]
             cells = ""
             for label, level in ri:
                 if label:
-                    cells += f'<td class="cell-label">{label}</td><td class="cell-tag">{badge_tag(level)}</td>'
+                    cells += (
+                        f'<td class="cell-label">{label}</td>'
+                        f'<td class="cell-tag">{badge_tag(level)}</td>'
+                    )
                 else:
                     cells += "<td></td><td></td>"
             cells += "<td></td><td></td>" * (cols - len(ri))
             rows_html += f"<tr>{cells}</tr>"
-        return f'<table class="badge-table"><colgroup>{col_defs}</colgroup>{rows_html}</table>'
+        return (
+            f'<table class="badge-table">'
+            f"<colgroup>{col_defs}</colgroup>"
+            f"{rows_html}</table>"
+        )
 
     def render_list(items):
-        li = "".join(f'<li><span class="num">{i+1}</span>{t}</li>' for i, t in enumerate(items))
+        if not items:
+            return '<span style="color:rgba(255,255,255,0.5);">—</span>'
+        li = "".join(
+            f'<li><span class="num">{i + 1}</span>{t}</li>'
+            for i, t in enumerate(items)
+        )
         return f'<ul class="text-list">{li}</ul>'
 
-    # Header
+    # ── Header ──
     st.markdown(
         '<div class="header-bar"><div class="logo">⚽</div>'
         '<div class="header-text"><span class="brand">SGA Performance</span>'
@@ -498,7 +509,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    # Seletor
+    # ── Seletor ──
     players_df = get_players()
     if players_df.empty:
         st.info("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador**.")
@@ -510,14 +521,17 @@ else:
 
     left_col, right_col = st.columns([1, 3], gap="large")
 
+    # ── COLUNA ESQUERDA ──
     with left_col:
         photo = player_row["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
         st.markdown(
             f'<div class="card player-card">'
             f'<img src="{photo}" alt="{player_name}">'
             f'<div class="divider"></div>'
-            f'<div class="label">Position</div><div class="value">{player_row["position"] or "—"}</div>'
-            f'<div class="label">Club</div><div class="value">{player_row["club"] or "—"}</div>'
+            f'<div class="label">Position</div>'
+            f'<div class="value">{player_row["position"] or "—"}</div>'
+            f'<div class="label">Club</div>'
+            f'<div class="value">{player_row["club"] or "—"}</div>'
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -527,41 +541,58 @@ else:
             mog = evaluation["mog"]
             cats = list(mog.keys())
             vals = list(mog.values())
-            cats_c = [c.replace(" ", "<br>").replace(".", ".<br>") if len(c) > 10 else c for c in cats]
-            cats_c.append(cats_c[0])
+            cats_display = []
+            for c in cats:
+                # Quebra nomes longos em 2 linhas
+                if len(c) > 12:
+                    parts = c.rsplit(" ", 1)
+                    cats_display.append("<br>".join(parts))
+                else:
+                    cats_display.append(c)
+            cats_display.append(cats_display[0])
             vals_c = vals + [vals[0]]
 
             fig = go.Figure()
             fig.add_trace(go.Scatterpolar(
-                r=vals_c, theta=cats_c, fill="toself",
+                r=vals_c, theta=cats_display, fill="toself",
                 fillcolor="rgba(100,181,246,0.30)",
                 line=dict(color="#64B5F6", width=2.5),
                 marker=dict(size=6, color="#64B5F6"),
             ))
             fig.update_layout(
-                title=dict(text="<b>MoG – Moments of the Game</b>",
-                           font=dict(size=15, color="white"), x=0.5, y=0.98),
+                title=dict(
+                    text="<b>MoG – Moments of the Game</b>",
+                    font=dict(size=15, color="white"), x=0.5, y=0.98,
+                ),
                 polar=dict(
                     bgcolor="rgba(255,255,255,0.03)",
                     domain=dict(x=[0.15, 0.85], y=[0.0, 0.82]),
-                    radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
-                                    gridcolor="rgba(255,255,255,0.10)"),
-                    angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
-                                     tickfont=dict(size=11, color="#CFD8DC"), rotation=90),
+                    radialaxis=dict(
+                        visible=True, range=[0, 100], showticklabels=False,
+                        gridcolor="rgba(255,255,255,0.10)",
+                    ),
+                    angularaxis=dict(
+                        gridcolor="rgba(255,255,255,0.10)",
+                        tickfont=dict(size=11, color="#CFD8DC"),
+                        rotation=90,
+                    ),
                 ),
                 paper_bgcolor="#0C1F3A", plot_bgcolor="#0C1F3A",
-                showlegend=False, margin=dict(l=60, r=60, t=55, b=50), height=440,
+                showlegend=False,
+                margin=dict(l=60, r=60, t=55, b=50),
+                height=440,
             )
             st.markdown('<div class="radar-container">', unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown("</div>", unsafe_allow_html=True)
 
+    # ── COLUNA DIREITA ──
     with right_col:
         if not evaluation:
             st.markdown(
                 '<div class="card no-data-msg">'
-                "📋 Nenhuma avaliação encontrada para este jogador.<br>"
-                "Vá em <b>📝 Nova Avaliação</b> para criar uma."
+                "📋 Nenhuma avaliação encontrada.<br>"
+                "Vá em <b>📝 Nova Avaliação</b> para criar."
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -569,26 +600,51 @@ else:
 
         sk = evaluation["skills"]
 
-        # Technical
+        # Technical (fixo)
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
-        st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
+        st.markdown(
+            render_section("Technical", render_badges_table(tech_items, 4)),
+            unsafe_allow_html=True,
+        )
 
-        # Player-Specific
-        ps_items = [(s, sk.get("player_specific", {}).get(s, "")) for s in PLAYER_SPECIFIC_SKILLS]
-        ps_items += [("", "")] * (4 - len(ps_items))
-        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
+        # Player-Specific (dinâmico — vem do que o analista digitou)
+        ps_data = sk.get("player_specific", {})
+        ps_items = [(name, level) for name, level in ps_data.items()]
+        # Padda até 4 slots para manter alinhamento
+        while len(ps_items) < 4:
+            ps_items.append(("", ""))
+        st.markdown(
+            render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)),
+            unsafe_allow_html=True,
+        )
 
-        # Mental
+        # Mental (fixo)
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
-        m_items += [("", "")] * (4 - len(m_items))
-        st.markdown(render_section("Mental", render_badges_table(m_items, 4)), unsafe_allow_html=True)
+        while len(m_items) < 4:
+            m_items.append(("", ""))
+        st.markdown(
+            render_section("Mental", render_badges_table(m_items, 4)),
+            unsafe_allow_html=True,
+        )
 
         # Strengths & Improve
         sc, ic = st.columns(2, gap="medium")
         with sc:
-            st.markdown(render_section("My Strengths", render_list(evaluation["strengths"] or ["—"])), unsafe_allow_html=True)
+            st.markdown(
+                render_section("My Strengths", render_list(evaluation["strengths"])),
+                unsafe_allow_html=True,
+            )
         with ic:
-            st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"] or ["—"])), unsafe_allow_html=True)
+            st.markdown(
+                render_section("Need to Improve", render_list(evaluation["improvements"])),
+                unsafe_allow_html=True,
+            )
 
-        # Rodapé da avaliação
-        st.caption(f"📅 Avaliação: {evaluation['eval_date']}  •  👤 Analista: {evaluation['analyst']}")
+        # Meta da avaliação
+        st.markdown(
+            f'<div class="eval-meta">'
+            f'📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; '
+            f'👤 <b>Analista:</b> {evaluation["analyst"]}'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
