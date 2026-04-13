@@ -16,7 +16,7 @@ DB_PATH = "sga_evaluations.db"
 # ──────────────────────────────────────────────
 # LOGO
 # ──────────────────────────────────────────────
-LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
+LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Simbolo_SGA_AzulEscuro.png?raw=true"
 LOGO_PATH = "assets/sga_logo.png"
 
 
