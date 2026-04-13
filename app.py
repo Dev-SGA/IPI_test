@@ -54,8 +54,13 @@ LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 # Helper: trigger safe rerun (avoid st.experimental_rerun() in nested contexts)
 # ---------------------------
 def trigger_rerun():
-    # use time.time() to avoid relying on datetime import order
-    st.experimental_set_query_params(_refresh=int(time.time()))
+    # Try to force a rerun by changing the query params. If that fails (race),
+    # fall back to setting a session_state token so no exception bubbles up.
+    try:
+        st.experimental_set_query_params(_refresh=int(time.time()))
+    except Exception:
+        # fallback - store a token so state changed (won't immediately rerun, but avoids crash)
+        st.session_state["_refresh_token"] = int(time.time())
 
 
 # ---------------------------
@@ -248,13 +253,16 @@ with st.sidebar.expander("Admin"):
         st.success("🔐 Autenticado como admin")
         if st.button("Logout", use_container_width=True):
             logout_admin()
+            # use safe rerun (try/except inside helper)
             trigger_rerun()
     else:
         pwd = st.text_input("Senha de administrador", type="password")
         if st.button("Entrar", use_container_width=True):
+            # IMPORTANT: do not call trigger_rerun() here — the button click
+            # already causes a rerun; calling the helper can race on some systems.
             if try_login(pwd):
                 st.success("Autenticado com sucesso.")
-                trigger_rerun()
+                # no explicit rerun here; Streamlit will rerun after button click
             else:
                 st.error("Senha incorreta.")
 
@@ -290,6 +298,7 @@ if page == "➕ Cadastrar Jogador":
             else:
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
+                # safe rerun helper (wrapped in try)
                 trigger_rerun()
 
 
@@ -426,7 +435,7 @@ elif page == "📚 Jogadores":
                 if st.button("Entrar (rápido)", use_container_width=True):
                     if try_login(quick_pwd):
                         st.success("Autenticado como admin.")
-                        trigger_rerun()
+                        # no explicit trigger_rerun here; button click triggers rerun
                     else:
                         st.error("Senha incorreta.")
                 # show basic info but hide edit card
@@ -581,6 +590,7 @@ elif page == "📚 Jogadores":
                                             improvements=improvements_payload,
                                         )
                                         st.success("✅ Jogador atualizado e nova avaliação criada!")
+                                # safe rerun after successful save/delete
                                 trigger_rerun()
                             except sqlite3.IntegrityError:
                                 st.error("Já existe um jogador com esse nome. Escolha outro nome.")
