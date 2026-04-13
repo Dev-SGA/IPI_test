@@ -369,10 +369,10 @@ elif page == "📚 Jogadores":
 # ---------------------------
 else:
     BADGE_STYLES = {
-        "Above Level": {"bg": "rgba(46,125,50,0.92)",  "fg": "#FFFFFF"},  # verde forte, texto branco
-        "Good":        {"bg": "rgba(21,101,192,0.92)", "fg": "#FFFFFF"},  # azul suave, texto branco
-        "Average":     {"bg": "rgba(255,167,38,0.92)", "fg": "#FFFFFF"},  # âmbar, texto branco
-        "Below Level": {"bg": "rgba(198,40,40,0.92)",  "fg": "#FFFFFF"},  # vermelho forte, texto branco
+        "Above Level": {"bg": "rgba(129,199,132,0.22)", "fg": "#1B5E20"},   # verde pastel translúcido
+        "Good":        {"bg": "rgba(102,187,106,0.20)", "fg": "#2E7D32"},   # verde claro suave
+        "Average":     {"bg": "rgba(255,224,130,0.18)", "fg": "#E6A817"},   # amarelo pastel suave
+        "Below Level": {"bg": "rgba(239,154,154,0.20)", "fg": "#C62828"},   # vermelho pastel translúcido
     }
 
     # Load Google fonts
