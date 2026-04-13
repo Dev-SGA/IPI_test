@@ -436,7 +436,7 @@ elif page == "📚 Jogadores":
                     st.image(sel_row["photo_url"], width=160)
             else:
                 # admin: show full edit card (edita TODOS os atributos, inclusive avaliação)
-                st.markdown('<div class="card" style="padding:12px">', unsafe_allow_html=True)
+                st.markdown('<div class="block-container card" style="padding:12px">', unsafe_allow_html=True)
                 st.markdown('### ✏️ Editar jogador')
 
                 with st.form(f"form_edit_{sel_row['id']}"):
@@ -658,19 +658,13 @@ else:
         unsafe_allow_html=True,
     )
 
-    # CSS template with tokens to replace (avoid Python-format braces conflict)
+    # CSS template scoped to .block-container to avoid affecting sidebar elements
     _css_template = """
     <style>
-    html, body, .stApp, .stApp * {
+    .block-container, .block-container * {
         font-family: __FG__ !important;
     }
-    .block-container {
-        max-width: 1600px !important;
-        padding-left: 2rem;
-        padding-right: 2rem;
-    }
-
-    .header-bar {
+    .block-container .header-bar {
         background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
         padding: 28px 40px;
         border-radius: 12px;
@@ -682,14 +676,14 @@ else:
         position: relative;
         overflow: hidden;
     }
-    .header-bar::before {
+    .block-container .header-bar::before {
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
         background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         pointer-events: none;
     }
-    .header-bar .header-logo {
+    .block-container .header-bar .header-logo {
         height: 96px;
         width: auto;
         object-fit: contain;
@@ -697,7 +691,7 @@ else:
         position: relative;
         z-index: 1;
     }
-    .header-bar .header-sep {
+    .block-container .header-bar .header-sep {
         width: 2px;
         height: 72px;
         background: rgba(10,42,74,0.2);
@@ -706,7 +700,7 @@ else:
         position: relative;
         z-index: 1;
     }
-    .header-bar h1 {
+    .block-container .header-bar h1 {
         font-family: __FD__ !important;
         color: #0a2a4a;
         margin: 0;
@@ -719,26 +713,26 @@ else:
         line-height: 1.2;
     }
 
-    .card {
+    .block-container .card {
         background: white;
         border-radius: 12px;
         padding: 20px;
         box-shadow: 0 2px 12px rgba(13,71,161,0.12);
     }
-    .player-card { text-align: center; }
-    .player-card img {
+    .block-container .player-card { text-align: center; }
+    .block-container .player-card img {
         border-radius: 10px;
         width: 100%;
         max-width: 180px;
         border: 3px solid #67b6fb;
     }
-    .player-card .divider {
+    .block-container .player-card .divider {
         width: 50px; height: 3px;
         background: #67b6fb;
         border-radius: 2px;
         margin: 10px auto;
     }
-    .player-card .label {
+    .block-container .player-card .label {
         font-family: __FG__ !important;
         font-size: 0.72rem;
         color: #78909C;
@@ -746,7 +740,7 @@ else:
         letter-spacing: 1.5px;
         font-weight: 700;
     }
-    .player-card .value {
+    .block-container .player-card .value {
         font-family: __FG__ !important;
         font-size: 1.05rem;
         color: #0D47A1;
@@ -754,13 +748,13 @@ else:
         margin-bottom: 10px;
     }
 
-    .section {
+    .block-container .section {
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 2px 10px rgba(13,71,161,0.12);
         margin-bottom: 16px;
     }
-    .section-header {
+    .block-container .section-header {
         background: #0D47A1;
         color: white;
         padding: 10px 20px;
@@ -770,21 +764,21 @@ else:
         letter-spacing: 1px;
         text-transform: uppercase;
     }
-    .section-body {
+    .block-container .section-body {
         background: #1E88E5;
         padding: 14px 20px;
     }
 
-    .badge-table {
+    .block-container .badge-table {
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
     }
-    .badge-table td {
+    .block-container .badge-table td {
         padding: 8px 8px;
         vertical-align: middle;
     }
-    .badge-table .cell-label {
+    .block-container .badge-table .cell-label {
         color: white;
         font-family: __FG__ !important;
         font-size: 0.92rem;
@@ -794,11 +788,11 @@ else:
         white-space: normal;
         word-break: break-word;
     }
-    .badge-table .cell-tag {
+    .block-container .badge-table .cell-tag {
         text-align: left;
         white-space: nowrap;
     }
-    .badge-tag {
+    .block-container .badge-tag {
         display: inline-block;
         padding: 6px 12px;
         border-radius: 6px;
@@ -811,12 +805,12 @@ else:
         box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
     }
 
-    .text-list {
+    .block-container .text-list {
         list-style: none;
         padding: 0;
         margin: 0;
     }
-    .text-list li {
+    .block-container .text-list li {
         color: white;
         font-family: __FDO__ !important;
         font-size: 0.95rem;
@@ -824,8 +818,8 @@ else:
         padding: 5px 0;
         border-bottom: 1px solid rgba(255,255,255,0.15);
     }
-    .text-list li:last-child { border-bottom: none; }
-    .text-list .num {
+    .block-container .text-list li:last-child { border-bottom: none; }
+    .block-container .text-list .num {
         display: inline-block;
         width: 24px; height: 24px;
         line-height: 24px;
@@ -836,14 +830,14 @@ else:
         margin-right: 8px;
     }
 
-    .radar-outer {
+    .block-container .radar-outer {
         background: #0C1F3A;
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(13,71,161,0.12);
         overflow: hidden;
         margin-bottom: 16px;
     }
-    .radar-title {
+    .block-container .radar-title {
         background: #0C1F3A;
         color: white;
         text-align: center;
@@ -854,16 +848,16 @@ else:
         text-transform: uppercase;
         padding: 14px 12px 0 12px;
     }
-    .radar-body { background: #0C1F3A; }
-    .radar-body > div { margin: 0 !important; padding: 0 !important; }
+    .block-container .radar-body { background: #0C1F3A; }
+    .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
 
-    .no-data-msg {
+    .block-container .no-data-msg {
         text-align: center;
         padding: 40px 20px;
         color: #78909C;
         font-size: 1.1rem;
     }
-    .eval-meta {
+    .block-container .eval-meta {
         background: rgba(13,71,161,0.06);
         border-radius: 8px;
         padding: 8px 16px;
@@ -872,7 +866,7 @@ else:
         font-size: 0.85rem;
         color: #546E7A;
     }
-    div[data-testid="stSelectbox"] label {
+    .block-container div[data-testid="stSelectbox"] label {
         font-weight: 600;
         color: #0D47A1;
         font-family: __FG__ !important;
@@ -964,7 +958,7 @@ else:
 
     # Header (use f-string to avoid messy concatenation)
     st.markdown(f'''
-        <div class="header-bar">
+        <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
             <div class="header-sep"></div>
             <h1>Individual Development Plan</h1>
@@ -985,7 +979,7 @@ else:
     with left_col:
         photo = pr["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
         st.markdown(f'''
-            <div class="card player-card">
+            <div class="block-container card player-card">
                 <img src="{photo}" alt="{player_name}">
                 <div class="divider"></div>
                 <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
@@ -995,7 +989,7 @@ else:
 
         if evaluation and evaluation["mog"]:
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-            st.markdown('<div class="radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
+            st.markdown('<div class="block-container radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
             fig = build_radar(evaluation["mog"])
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown("</div></div>", unsafe_allow_html=True)
@@ -1003,7 +997,7 @@ else:
     with right_col:
         if not evaluation:
             st.markdown(
-                '<div class="card no-data-msg">📋 Nenhuma avaliação encontrada.<br>'
+                '<div class="block-container card no-data-msg">📋 Nenhuma avaliação encontrada.<br>'
                 'Vá em <b>📝 Nova Avaliação</b> para criar.</div>',
                 unsafe_allow_html=True,
             )
@@ -1035,6 +1029,6 @@ else:
             st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])), unsafe_allow_html=True)
 
         st.markdown(
-            f'<div class="eval-meta">📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; 👤 <b>Analista:</b> {evaluation["analyst"]}</div>',
+            f'<div class="block-container eval-meta">📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; 👤 <b>Analista:</b> {evaluation["analyst"]}</div>',
             unsafe_allow_html=True,
         )
