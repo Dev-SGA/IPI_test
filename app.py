@@ -56,124 +56,252 @@ PLAYERS = {
             "Runs in behind",
         ],
     },
-    # Adicione mais jogadores aqui seguindo a mesma estrutura
 }
 
 # ──────────────────────────────────────────────
-# FUNÇÕES AUXILIARES
+# PALETA DE CORES
 # ──────────────────────────────────────────────
-BADGE_COLORS = {
-    "Above Level": ("#1B5E20", "#FFFFFF"),   # verde escuro
-    "Good":        ("#2E7D32", "#FFFFFF"),    # verde
-    "Average":     ("#F9A825", "#FFFFFF"),    # amarelo/dourado
-    "Below Level": ("#C62828", "#FFFFFF"),    # vermelho
+COLORS = {
+    "primary":      "#0D47A1",
+    "primary_mid":  "#1565C0",
+    "primary_light": "#1E88E5",
+    "accent":       "#90CAF9",
+    "card_bg":      "#FFFFFF",
+    "card_shadow":  "rgba(13,71,161,0.12)",
+    "page_bg_start": "#e8eef7",
+    "page_bg_end":   "#d0dff0",
+    "radar_bg":     "#102A4E",
+    "radar_fill":   "rgba(30,136,229,0.40)",
+    "radar_line":   "#64B5F6",
 }
 
-
-def badge(label: str, level: str) -> str:
-    """Retorna HTML de um indicador com badge colorida."""
-    bg, fg = BADGE_COLORS.get(level, ("#616161", "#FFFFFF"))
-    return (
-        f'<span style="font-size:0.95rem;font-weight:500;margin-right:6px;">{label}</span>'
-        f'<span style="background:{bg};color:{fg};padding:4px 14px;border-radius:4px;'
-        f'font-size:0.85rem;font-weight:700;">{level}</span>'
-    )
-
-
-def section_title(text: str) -> str:
-    return (
-        f'<div style="background:#1565C0;color:white;padding:8px 16px;'
-        f'border-radius:6px 6px 0 0;font-size:1.15rem;font-weight:700;'
-        f'margin-bottom:0;">{text}</div>'
-    )
-
-
-def section_body(inner_html: str) -> str:
-    return (
-        f'<div style="background:#1E88E5;padding:14px 16px;border-radius:0 0 6px 6px;'
-        f'color:white;margin-bottom:16px;">{inner_html}</div>'
-    )
-
-
-def render_badges_grid(items: dict, cols: int = 4) -> str:
-    """Monta uma grid HTML de badges."""
-    cells = "".join(
-        f'<div style="padding:6px 4px;text-align:center;">{badge(k, v)}</div>'
-        for k, v in items.items()
-    )
-    return (
-        f'<div style="display:grid;grid-template-columns:repeat({cols}, 1fr);'
-        f'gap:4px 12px;">{cells}</div>'
-    )
-
+BADGE_STYLES = {
+    "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
+    "Good":        {"bg": "#2E7D32", "fg": "#FFFFFF"},
+    "Average":     {"bg": "#E6A817", "fg": "#FFFFFF"},
+    "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
+}
 
 # ──────────────────────────────────────────────
 # CSS GLOBAL
 # ──────────────────────────────────────────────
 st.markdown(
-    """
+    f"""
     <style>
-    /* Fundo geral */
-    .stApp {
-        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-    }
-    /* Remove padding extra */
-    .block-container { padding-top: 1rem; }
-    /* Header */
-    .header-bar {
-        background: linear-gradient(90deg, #0D47A1, #1565C0);
-        padding: 18px 32px;
-        border-radius: 10px;
+    /* ── Reset & Background ── */
+    .stApp {{
+        background: linear-gradient(160deg, {COLORS['page_bg_start']} 0%, {COLORS['page_bg_end']} 100%);
+    }}
+    .block-container {{
+        padding-top: 1.2rem;
+        padding-bottom: 1rem;
+        max-width: 1280px;
+    }}
+
+    /* ── Header ── */
+    .header-bar {{
+        background: linear-gradient(90deg, {COLORS['primary']}, {COLORS['primary_mid']});
+        padding: 20px 36px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-    .header-bar h1 {
+        gap: 18px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 16px {COLORS['card_shadow']};
+    }}
+    .header-bar .logo {{
+        font-size: 2rem;
+        line-height: 1;
+    }}
+    .header-bar .header-text {{
+        display: flex;
+        flex-direction: column;
+    }}
+    .header-bar .brand {{
+        color: {COLORS['accent']};
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }}
+    .header-bar h1 {{
         color: white;
         margin: 0;
-        font-size: 1.8rem;
-        letter-spacing: 1px;
-    }
-    .header-bar .logo-text {
-        color: #90CAF9;
-        font-size: 1rem;
-        font-weight: 600;
-    }
-    /* Card do jogador */
-    .player-card {
-        background: white;
-        border-radius: 10px;
-        padding: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        font-size: 1.65rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }}
+
+    /* ── Card genérico ── */
+    .card {{
+        background: {COLORS['card_bg']};
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 12px {COLORS['card_shadow']};
+    }}
+
+    /* ── Player Card ── */
+    .player-card {{
         text-align: center;
-    }
-    .player-card img {
-        border-radius: 8px;
-        width: 160px;
+    }}
+    .player-card img {{
+        border-radius: 10px;
+        width: 100%;
+        max-width: 180px;
         height: auto;
         object-fit: cover;
-    }
-    .player-card .info { margin-top: 10px; }
-    .player-card .info h3 { margin: 2px 0; color: #0D47A1; }
-    .player-card .info p  { margin: 0; color: #333; font-size: 0.95rem; }
-    /* Listas de strengths / improve */
-    .text-list { list-style: none; padding-left: 0; }
-    .text-list li {
-        font-size: 1rem;
+        border: 3px solid {COLORS['accent']};
+    }}
+    .player-card .divider {{
+        width: 50px;
+        height: 3px;
+        background: {COLORS['primary_light']};
+        border-radius: 2px;
+        margin: 10px auto;
+    }}
+    .player-card .label {{
+        font-size: 0.75rem;
+        color: #78909C;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 2px;
         font-weight: 600;
-        color: white;
-        padding: 4px 0;
-    }
-    .text-list li::before {
-        content: counter(li) ". ";
-        counter-increment: li;
+    }}
+    .player-card .value {{
+        font-size: 1.05rem;
+        color: {COLORS['primary']};
         font-weight: 700;
-    }
+        margin-bottom: 10px;
+    }}
+
+    /* ── Section (blue panels) ── */
+    .section {{
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px {COLORS['card_shadow']};
+        margin-bottom: 16px;
+    }}
+    .section-header {{
+        background: {COLORS['primary']};
+        color: white;
+        padding: 10px 20px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }}
+    .section-body {{
+        background: {COLORS['primary_light']};
+        padding: 16px 20px;
+    }}
+
+    /* ── Badge Grid ── */
+    .badge-grid {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        justify-content: flex-start;
+    }}
+    .badge-item {{
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+    }}
+    .badge-label {{
+        color: white;
+        font-size: 0.88rem;
+        font-weight: 500;
+        white-space: nowrap;
+    }}
+    .badge-tag {{
+        padding: 4px 14px;
+        border-radius: 5px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        white-space: nowrap;
+        letter-spacing: 0.3px;
+    }}
+
+    /* ── Text lists (strengths / improve) ── */
+    .text-list {{
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }}
+    .text-list li {{
+        color: white;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 5px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+    }}
+    .text-list li:last-child {{
+        border-bottom: none;
+    }}
+    .text-list .num {{
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        text-align: center;
+        background: rgba(255,255,255,0.2);
+        border-radius: 50%;
+        font-size: 0.8rem;
+        margin-right: 8px;
+    }}
+
+    /* ── Radar wrapper ── */
+    .radar-wrapper {{
+        background: {COLORS['radar_bg']};
+        border-radius: 0 0 12px 12px;
+        padding: 12px 8px 8px 8px;
+    }}
+
+    /* ── Streamlit overrides ── */
+    div[data-testid="stSelectbox"] label {{
+        font-weight: 600;
+        color: {COLORS['primary']};
+    }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+# ─────────────────────────────────────────���────
+# FUNÇÕES AUXILIARES
+# ──────────────────────────────────────────────
+def badge_html(label: str, level: str) -> str:
+    s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
+    return (
+        f'<div class="badge-item">'
+        f'  <span class="badge-label">{label}</span>'
+        f'  <span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
+        f'</div>'
+    )
+
+
+def render_section(title: str, body_html: str) -> str:
+    return (
+        f'<div class="section">'
+        f'  <div class="section-header">{title}</div>'
+        f'  <div class="section-body">{body_html}</div>'
+        f'</div>'
+    )
+
+
+def render_badges(items: dict) -> str:
+    cells = "".join(badge_html(k, v) for k, v in items.items())
+    return f'<div class="badge-grid">{cells}</div>'
+
+
+def render_list(items: list) -> str:
+    li = "".join(
+        f'<li><span class="num">{i+1}</span>{text}</li>'
+        for i, text in enumerate(items)
+    )
+    return f'<ul class="text-list">{li}</ul>'
+
 
 # ──────────────────────────────────────────────
 # HEADER
@@ -181,9 +309,10 @@ st.markdown(
 st.markdown(
     """
     <div class="header-bar">
-        <div>
-            <span class="logo-text">⚽ SGA Performance</span>
-            <h1>INDIVIDUAL DEVELOPMENT PLAN</h1>
+        <div class="logo">⚽</div>
+        <div class="header-text">
+            <span class="brand">SGA Performance</span>
+            <h1>Individual Development Plan</h1>
         </div>
     </div>
     """,
@@ -199,103 +328,113 @@ p = PLAYERS[player_name]
 # ──────────────────────────────────────────────
 # LAYOUT PRINCIPAL
 # ──────────────────────────────────────────────
-left_col, right_col = st.columns([1, 3], gap="medium")
+left_col, right_col = st.columns([1, 3], gap="large")
 
-# ---- COLUNA ESQUERDA: Card + Radar ----
+# ── COLUNA ESQUERDA ──
 with left_col:
-    # Card do jogador
+    # Player Card
     st.markdown(
         f"""
-        <div class="player-card">
+        <div class="card player-card">
             <img src="{p['photo_url']}" alt="{player_name}">
-            <div class="info">
-                <p><strong>Position</strong></p>
-                <h3>{p['position']}</h3>
-                <p><strong>Club</strong></p>
-                <h3>{p['club']}</h3>
-            </div>
+            <div class="divider"></div>
+            <div class="label">Position</div>
+            <div class="value">{p['position']}</div>
+            <div class="label">Club</div>
+            <div class="value">{p['club']}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Radar Chart – MoG (Moments of the Game)
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-    st.markdown(section_title("MoG"), unsafe_allow_html=True)
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
+    # MoG Radar
     categories = list(p["mog"].keys())
     values = list(p["mog"].values())
-    # Fechar o polígono
     categories_closed = categories + [categories[0]]
     values_closed = values + [values[0]]
 
-    fig = go.Figure(
+    fig = go.Figure()
+
+    # Polígono preenchido
+    fig.add_trace(
         go.Scatterpolar(
             r=values_closed,
             theta=categories_closed,
             fill="toself",
-            fillcolor="rgba(21,101,192,0.35)",
-            line=dict(color="#0D47A1", width=2),
-            marker=dict(size=5),
+            fillcolor=COLORS["radar_fill"],
+            line=dict(color=COLORS["radar_line"], width=2.5),
+            marker=dict(size=6, color=COLORS["radar_line"]),
+            hovertemplate="%{theta}: %{r}<extra></extra>",
         )
     )
+
     fig.update_layout(
         polar=dict(
-            bgcolor="rgba(255,255,255,0.05)",
-            radialaxis=dict(visible=True, range=[0, 100], showticklabels=False),
-            angularaxis=dict(color="white"),
+            bgcolor="rgba(255,255,255,0.04)",
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                showticklabels=False,
+                gridcolor="rgba(255,255,255,0.1)",
+                linecolor="rgba(255,255,255,0.05)",
+            ),
+            angularaxis=dict(
+                gridcolor="rgba(255,255,255,0.1)",
+                linecolor="rgba(255,255,255,0.15)",
+                tickfont=dict(size=11, color="#B0BEC5"),
+            ),
         ),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         showlegend=False,
-        margin=dict(l=40, r=40, t=20, b=40),
+        margin=dict(l=50, r=50, t=30, b=30),
         height=320,
-        font=dict(color="white"),
     )
-    st.plotly_chart(fig, use_container_width=True)
 
-# ---- COLUNA DIREITA: Indicadores ----
+    # Envolve com fundo escuro + header
+    st.markdown(
+        f'<div class="section">'
+        f'  <div class="section-header">MoG – Moments of the Game</div>'
+        f'  <div class="radar-wrapper">',
+        unsafe_allow_html=True,
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+
+# ── COLUNA DIREITA ──
 with right_col:
-    # TECHNICAL
-    st.markdown(section_title("Technical"), unsafe_allow_html=True)
+    # Technical
     st.markdown(
-        section_body(render_badges_grid(p["technical"], cols=4)),
+        render_section("Technical", render_badges(p["technical"])),
         unsafe_allow_html=True,
     )
 
-    # PLAYER-SPECIFIC INDICATORS
-    st.markdown(section_title("Player-Specific Indicators"), unsafe_allow_html=True)
+    # Player-Specific Indicators
     st.markdown(
-        section_body(render_badges_grid(p["player_specific"], cols=4)),
+        render_section("Player-Specific Indicators", render_badges(p["player_specific"])),
         unsafe_allow_html=True,
     )
 
-    # MENTAL
-    st.markdown(section_title("Mental"), unsafe_allow_html=True)
+    # Mental
     st.markdown(
-        section_body(render_badges_grid(p["mental"], cols=3)),
+        render_section("Mental", render_badges(p["mental"])),
         unsafe_allow_html=True,
     )
 
-    # STRENGTHS & IMPROVE – lado a lado
-    s_col, i_col = st.columns(2)
+    # Strengths & Improve – lado a lado
+    s_col, i_col = st.columns(2, gap="medium")
+
     with s_col:
-        st.markdown(section_title("My Strengths"), unsafe_allow_html=True)
-        items_html = "".join(
-            f"<li><strong>{i+1}.</strong> {s}</li>"
-            for i, s in enumerate(p["strengths"])
-        )
         st.markdown(
-            section_body(f'<ul style="list-style:none;padding:0;margin:0;">{items_html}</ul>'),
+            render_section("My Strengths", render_list(p["strengths"])),
             unsafe_allow_html=True,
         )
+
     with i_col:
-        st.markdown(section_title("Need to Improve"), unsafe_allow_html=True)
-        items_html = "".join(
-            f"<li><strong>{i+1}.</strong> {s}</li>"
-            for i, s in enumerate(p["improve"])
-        )
         st.markdown(
-            section_body(f'<ul style="list-style:none;padding:0;margin:0;">{items_html}</ul>'),
+            render_section("Need to Improve", render_list(p["improve"])),
             unsafe_allow_html=True,
         )
