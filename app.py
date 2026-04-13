@@ -1,4 +1,5 @@
 # app.py
+# app.py
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -12,7 +13,7 @@ st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 DB_PATH = "sga_evaluations.db"
 
 # Logo sources (local base64 fallback to URL)
-LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
+LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
 LOGO_PATH = "assets/sga_logo.png"
 
 
@@ -368,11 +369,12 @@ elif page == "📚 Jogadores":
 # Page: Dashboard (full)
 # ---------------------------
 else:
+    # Badge colors adjusted: slightly more transparent, and "Good" lighter green
     BADGE_STYLES = {
-        "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
-        "Good":        {"bg": "#2E7D32", "fg": "#FFFFFF"},
-        "Average":     {"bg": "#E6A817", "fg": "#FFFFFF"},
-        "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
+        "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},   # darker green, slightly transparent
+        "Good": {"bg": "rgba(76,175,80,0.75)", "fg": "#FFFFFF"},         # lighter green, more transparent
+        "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},    # amber, transparent
+        "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},  # red, transparent
     }
 
     # Load Google fonts
@@ -413,7 +415,7 @@ else:
         pointer-events: none;
     }
     .header-bar .header-logo {
-        height: 64px;
+        height: 84px; /* increased ~30% from 64px to 84px */
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
@@ -422,8 +424,8 @@ else:
     }
     .header-bar .header-sep {
         width: 2px;
-        height: 48px;
-        background: rgba(10,42,74,0.2);
+        height: 56px;
+        background: rgba(10,42,74,0.18);
         border-radius: 1px;
         flex-shrink: 0;
         position: relative;
@@ -532,6 +534,8 @@ else:
         white-space: nowrap;
         min-width: 90px;
         text-align: center;
+        /* subtle inner shadow for elegance */
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
     }
 
     .text-list {
@@ -609,7 +613,7 @@ else:
     def badge_tag(level):
         if not level:
             return ""
-        s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
+        s = BADGE_STYLES.get(level, {"bg": "rgba(97,97,97,0.75)", "fg": "#FFF"})
         return '<span class="badge-tag" style="background:' + s["bg"] + ";color:" + s["fg"] + ';">' + level + "</span>"
 
     def render_section(title, body):
