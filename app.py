@@ -118,7 +118,7 @@ def delete_player(player_id: int):
     conn.close()
 
 
-# DB helper: update player (novo)
+# DB helper: update player
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     conn = get_db()
     try:
@@ -328,14 +328,18 @@ elif page == "📚 Jogadores":
 
         sel_name = st.selectbox("Selecione um atleta", players_df["name"].tolist())
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
-        st.markdown(f"**Nome:** {sel_row['name']}")
-        st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
-        if sel_row["photo_url"]:
-            st.image(sel_row["photo_url"], width=160)
 
-        # Três colunas: ver, apagar, editar
-        col_view, col_delete, col_edit = st.columns([1, 1, 1])
-        with col_view:
+        # Layout: left = view / delete actions, right = edit form (aligned with "Ações")
+        left_col, right_col = st.columns([2, 1], gap="large")
+
+        # Left column: display basic info and view/delete actions
+        with left_col:
+            st.markdown(f"**Nome:** {sel_row['name']}")
+            st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
+            if sel_row["photo_url"]:
+                st.image(sel_row["photo_url"], width=160)
+
+            st.markdown("")  # small spacer
             if st.button("Ver avaliações deste atleta"):
                 evaluation = get_latest_evaluation(int(sel_row["id"]))
                 if not evaluation:
@@ -367,7 +371,7 @@ elif page == "📚 Jogadores":
                         st.markdown("**Need to Improve**")
                         st.write(evaluation["improvements"])
 
-        with col_delete:
+            st.markdown("")  # spacer
             confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
             if confirm:
                 if st.button("Confirmar exclusão"):
@@ -375,23 +379,32 @@ elif page == "📚 Jogadores":
                     st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                     st.experimental_rerun()
 
-        with col_edit:
-            with st.expander("✏️ Editar jogador"):
-                with st.form(f"form_edit_{sel_row['id']}"):
-                    new_name = st.text_input("Nome completo *", value=sel_row["name"])
-                    new_position = st.text_input("Posição", value=sel_row["position"] or "")
-                    new_club = st.text_input("Clube", value=sel_row["club"] or "")
-                    new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
-                    if st.form_submit_button("💾 Salvar alterações"):
-                        if not new_name.strip():
-                            st.error("Nome é obrigatório.")
-                        else:
-                            try:
-                                update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
-                                st.success(f"✅ Jogador **{new_name}** atualizado com sucesso!")
-                                st.experimental_rerun()
-                            except sqlite3.IntegrityError:
-                                st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
+        # Right column: Editing card aligned with Actions (edita todos os atributos)
+        with right_col:
+            # Card wrapper (styling uses app CSS defined in Dashboard; safe to use simple markup)
+            st.markdown('<div class="card" style="padding:12px">', unsafe_allow_html=True)
+            st.markdown('### ✏️ Editar jogador')
+
+            # Edit form: allows editing all player attributes (name, position, club, photo_url)
+            with st.form(f"form_edit_{sel_row['id']}"):
+                new_name = st.text_input("Nome completo *", value=sel_row["name"])
+                new_position = st.text_input("Posição", value=sel_row["position"] or "")
+                new_club = st.text_input("Clube", value=sel_row["club"] or "")
+                new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+
+                submitted = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
+                if submitted:
+                    if not new_name.strip():
+                        st.error("Nome é obrigatório.")
+                    else:
+                        try:
+                            update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
+                            st.success(f"✅ Jogador **{new_name}** atualizado com sucesso!")
+                            # After update, refresh players list and UI
+                            st.experimental_rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
