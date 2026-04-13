@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -6,16 +7,11 @@ import base64
 from pathlib import Path
 from datetime import date
 
-# ──────────────────────────────────────────────
-# CONFIGURAÇÃO
-# ──────────────────────────────────────────────
 st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
 DB_PATH = "sga_evaluations.db"
 
-# ──────────────────────────────────────────────
-# LOGO
-# ──────────────────────────────────────────────
+# Logo sources
 LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
 LOGO_PATH = "assets/sga_logo.png"
 
@@ -32,16 +28,12 @@ def get_logo_base64(path: str) -> str:
 
 LOGO_SRC = get_logo_base64(LOGO_PATH) or LOGO_URL
 
-# ──────────────────────────────────────────────
-# TIPOGRAFIA
-# ──────────────────────────────────────────────
+# Fonts
 FONT_DISPLAY = "'Orbitron', sans-serif"
 FONT_GRAPHIC = "'Source Sans 3', sans-serif"
 FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
 
-# ──────────────────────────────────────────────
-# SKILLS / LEVELS
-# ──────────────────────────────────────────────
+# Domain data
 TECHNICAL_SKILLS = [
     "General Passing", "1st Touch", "Head. Direction", "1v1 Defending",
     "Crossing", "1v1 Attacking", "Aerials Duels", "Off Ball Def.",
@@ -54,9 +46,7 @@ MOG_CATEGORIES = [
 LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
 
-# ──────────────────────────────────────────────
-# BANCO DE DADOS
-# ──────────────────────────────────────────────
+# Database helpers
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -168,11 +158,10 @@ def get_latest_evaluation(player_id):
             "strengths": strengths, "improvements": improvements}
 
 
-# ──────────────────────────────────────────────
-# NAVEGAÇÃO
-# ──────────────────────────────────────────────
+# UI navigation
 page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador"])
 
+# Create / List players
 if page == "➕ Cadastrar Jogador":
     st.header("Cadastrar Novo Jogador")
     with st.form("form_player"):
@@ -190,6 +179,7 @@ if page == "➕ Cadastrar Jogador":
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
 
+# New evaluation
 elif page == "📝 Nova Avaliação":
     st.header("Nova Avaliação")
     players_df = get_players()
@@ -258,9 +248,7 @@ elif page == "📝 Nova Avaliação":
                 st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
 
-# ══════════════════════════════════════════════
-# DASHBOARD
-# ══════════════════════════════════════════════
+# Dashboard page
 else:
     BADGE_STYLES = {
         "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
@@ -269,14 +257,13 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
-    # Google Fonts
+    # Load fonts
     st.markdown(
-        '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900'
-        '&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
+        '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
-    # CSS — usando % formatting
+    # CSS (use % formatting to avoid f-string braces conflicts)
     _css = """
     <style>
     html, body, .stApp, .stApp * {
@@ -288,7 +275,6 @@ else:
         padding-right: 2rem;
     }
 
-    /* ══ HEADER ══ */
     .header-bar {
         background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
         padding: 22px 40px;
@@ -338,7 +324,6 @@ else:
         line-height: 1.2;
     }
 
-    /* ══ PLAYER CARD ══ */
     .card {
         background: white;
         border-radius: 12px;
@@ -374,7 +359,6 @@ else:
         margin-bottom: 10px;
     }
 
-    /* ══ SECTIONS ══ */
     .section {
         border-radius: 12px;
         overflow: hidden;
@@ -396,11 +380,11 @@ else:
         padding: 14px 20px;
     }
 
-    /* ══ BADGE TABLE ══ */
+    /* ── Badge Table — aligned columns, no truncation ── */
     .badge-table {
         width: 100%%;
         border-collapse: collapse;
-        table-layout: auto;
+        table-layout: fixed;  /* fixed so colgroup widths are respected */
     }
     .badge-table td {
         padding: 8px 8px;
@@ -409,20 +393,21 @@ else:
     .badge-table .cell-label {
         color: white;
         font-family: %(fg)s !important;
-        font-size: 0.88rem;
+        font-size: 0.92rem;
         font-weight: 600;
         text-align: right;
-        padding-right: 10px;
-        white-space: nowrap;
+        padding-right: 14px;
+        white-space: normal;     /* allow wrapping instead of ellipsis */
+        word-break: break-word;
     }
     .badge-table .cell-tag {
         text-align: left;
-        white-space: nowrap;
+        white-space: nowrap;     /* badge must stay single-line */
     }
     .badge-tag {
         display: inline-block;
-        padding: 5px 14px;
-        border-radius: 5px;
+        padding: 6px 12px;
+        border-radius: 6px;
         font-family: %(fg)s !important;
         font-size: 0.82rem;
         font-weight: 700;
@@ -431,7 +416,6 @@ else:
         text-align: center;
     }
 
-    /* ══ TEXT LISTS ══ */
     .text-list {
         list-style: none;
         padding: 0;
@@ -457,7 +441,6 @@ else:
         margin-right: 8px;
     }
 
-    /* ══ RADAR ══ */
     .radar-outer {
         background: #0C1F3A;
         border-radius: 12px;
@@ -504,7 +487,7 @@ else:
 
     st.markdown(_css, unsafe_allow_html=True)
 
-    # ── Helpers ──
+    # Helpers
     def badge_tag(level):
         if not level:
             return ""
@@ -514,19 +497,47 @@ else:
     def render_section(title, body):
         return '<div class="section"><div class="section-header">' + title + '</div><div class="section-body">' + body + "</div></div>"
 
-    def render_badges_table(items, cols=4):
-        rows = ""
-        for rs in range(0, len(items), cols):
-            ri = items[rs: rs + cols]
+    # UPDATED function: builds table with colgroup (label-cols + tag-cols)
+    def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
+        """
+        items: list of (label, level) pairs in the order you want columns to appear.
+        cols: number of columns per row (each column = label + tag).
+        tag_px: fixed px width for each tag column.
+        """
+        # pad to multiple of cols
+        if len(items) % cols != 0:
+            remaining = cols - (len(items) % cols)
+            items = items + [("", "")] * remaining
+
+        total_tag_px = tag_px * cols
+        # label column width: remaining space divided by cols
+        label_col_calc = f"calc((100% - {total_tag_px}px) / {cols})"
+
+        # colgroup HTML
+        colgroup_html = "<colgroup>"
+        for _ in range(cols):
+            colgroup_html += f'<col class="label-col" style="width:{label_col_calc}">'
+            colgroup_html += f'<col class="tag-col" style="width:{tag_px}px">'
+        colgroup_html += "</colgroup>"
+
+        # rows
+        rows_html = ""
+        for row_start in range(0, len(items), cols):
+            row_items = items[row_start: row_start + cols]
             cells = ""
-            for lb, lv in ri:
-                if lb:
-                    cells += '<td class="cell-label">' + lb + '</td><td class="cell-tag">' + badge_tag(lv) + "</td>"
+            for label, level in row_items:
+                if label:
+                    cells += f'<td class="cell-label">{label}</td>'
+                    if level:
+                        cells += f'<td class="cell-tag">{badge_tag(level)}</td>'
+                    else:
+                        cells += '<td class="cell-tag"></td>'
                 else:
                     cells += "<td></td><td></td>"
-            cells += "<td></td><td></td>" * (cols - len(ri))
-            rows += "<tr>" + cells + "</tr>"
-        return '<table class="badge-table">' + rows + "</table>"
+            rows_html += f"<tr>{cells}</tr>"
+
+        table_html = f'<table class="badge-table">{colgroup_html}{rows_html}</table>'
+        return table_html
 
     def render_list(items):
         if not items:
@@ -564,9 +575,7 @@ else:
         )
         return fig
 
-    # ══════════════════════════════════════════
-    # HEADER — Logo + separador + título
-    # ══════════════════════════════════════════
+    # Header: logo + separator + title
     st.markdown(
         '<div class="header-bar">'
         '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
@@ -618,24 +627,31 @@ else:
             )
             st.stop()
         sk = evaluation["skills"]
+
+        # Technical (keeps original order - indexes determine columns)
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
         st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
+
+        # Player-specific: we must preserve the slots order the analyst filled. We stored them by insertion order.
         ps_data = sk.get("player_specific", {})
+        # Build list in order: attempt to preserve insertion order (dict) — pad to 4 slots
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) < 4:
             ps_items.append(("", ""))
-        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)),
-                    unsafe_allow_html=True)
+        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
+
+        # Mental: fixed order, pad to 4
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
         while len(m_items) < 4:
             m_items.append(("", ""))
         st.markdown(render_section("Mental", render_badges_table(m_items, 4)), unsafe_allow_html=True)
+
         sc, ic = st.columns(2, gap="medium")
         with sc:
             st.markdown(render_section("My Strengths", render_list(evaluation["strengths"])), unsafe_allow_html=True)
         with ic:
-            st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])),
-                        unsafe_allow_html=True)
+            st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])), unsafe_allow_html=True)
+
         st.markdown(
             '<div class="eval-meta">📅 <b>Avaliação:</b> ' + evaluation["eval_date"]
             + " &nbsp;•&nbsp; 👤 <b>Analista:</b> " + evaluation["analyst"] + "</div>",
