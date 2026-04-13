@@ -12,32 +12,35 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────
-# DADOS DE EXEMPLO (substitua pela sua fonte real)
+# DADOS DE EXEMPLO
 # ──────────────────────────────────────────────
 PLAYERS = {
     "Sebastiao Nzita": {
         "position": "Left Winger",
         "club": "Houston Dynamo",
         "photo_url": "https://via.placeholder.com/180x220/FF6600/FFFFFF?text=S.Nzita",
-        "technical": {
-            "General Passing": "Above Level",
-            "1st Touch": "Average",
-            "Head. Direction": "Good",
-            "1v1 Defending": "Average",
-            "Crossing": "Good",
-            "1v1 Attacking": "Good",
-            "Aerials Duels": "Below Level",
-            "Off Ball Def.": "Good",
-        },
-        "player_specific": {
-            "Finishing": "Good",
-            "Long Ball": "Good",
-        },
-        "mental": {
-            "Awareness": "Average",
-            "Effort": "Good",
-            "Team Work": "Good",
-        },
+        "technical": [
+            ("General Passing", "Above Level"),
+            ("1st Touch", "Average"),
+            ("Head. Direction", "Good"),
+            ("1v1 Defending", "Average"),
+            ("Crossing", "Good"),
+            ("1v1 Attacking", "Good"),
+            ("Aerials Duels", "Below Level"),
+            ("Off Ball Def.", "Good"),
+        ],
+        "player_specific": [
+            ("Finishing", "Good"),
+            ("Long Ball", "Good"),
+            ("", ""),
+            ("", ""),
+        ],
+        "mental": [
+            ("Awareness", "Average"),
+            ("Effort", "Good"),
+            ("Team Work", "Good"),
+            ("", ""),
+        ],
         "mog": {
             "Off. Possession": 75,
             "Off. Transition": 60,
@@ -88,14 +91,13 @@ BADGE_STYLES = {
 st.markdown(
     f"""
     <style>
-    /* ── Reset & Background ── */
     .stApp {{
         background: linear-gradient(160deg, {COLORS['page_bg_start']} 0%, {COLORS['page_bg_end']} 100%);
     }}
     .block-container {{
         padding-top: 1.2rem;
         padding-bottom: 1rem;
-        max-width: 1280px;
+        max-width: 1320px;
     }}
 
     /* ── Header ── */
@@ -109,100 +111,70 @@ st.markdown(
         margin-bottom: 24px;
         box-shadow: 0 4px 16px {COLORS['card_shadow']};
     }}
-    .header-bar .logo {{
-        font-size: 2rem;
-        line-height: 1;
-    }}
-    .header-bar .header-text {{
-        display: flex;
-        flex-direction: column;
-    }}
+    .header-bar .logo {{ font-size: 2rem; line-height: 1; }}
+    .header-bar .header-text {{ display: flex; flex-direction: column; }}
     .header-bar .brand {{
         color: {COLORS['accent']};
-        font-size: 0.85rem;
-        font-weight: 600;
-        letter-spacing: 2px;
-        text-transform: uppercase;
+        font-size: 0.85rem; font-weight: 600;
+        letter-spacing: 2px; text-transform: uppercase;
     }}
     .header-bar h1 {{
-        color: white;
-        margin: 0;
-        font-size: 1.65rem;
-        font-weight: 800;
-        letter-spacing: 0.5px;
+        color: white; margin: 0;
+        font-size: 1.65rem; font-weight: 800;
     }}
 
-    /* ── Card genérico ── */
+    /* ── Card ── */
     .card {{
         background: {COLORS['card_bg']};
-        border-radius: 12px;
-        padding: 20px;
+        border-radius: 12px; padding: 20px;
         box-shadow: 0 2px 12px {COLORS['card_shadow']};
     }}
-
-    /* ── Player Card ── */
-    .player-card {{
-        text-align: center;
-    }}
+    .player-card {{ text-align: center; }}
     .player-card img {{
-        border-radius: 10px;
-        width: 100%;
-        max-width: 180px;
-        height: auto;
-        object-fit: cover;
+        border-radius: 10px; width: 100%; max-width: 180px;
+        height: auto; object-fit: cover;
         border: 3px solid {COLORS['accent']};
     }}
     .player-card .divider {{
-        width: 50px;
-        height: 3px;
+        width: 50px; height: 3px;
         background: {COLORS['primary_light']};
-        border-radius: 2px;
-        margin: 10px auto;
+        border-radius: 2px; margin: 10px auto;
     }}
     .player-card .label {{
-        font-size: 0.75rem;
-        color: #78909C;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 2px;
-        font-weight: 600;
+        font-size: 0.75rem; color: #78909C;
+        text-transform: uppercase; letter-spacing: 1.5px;
+        margin-bottom: 2px; font-weight: 600;
     }}
     .player-card .value {{
-        font-size: 1.05rem;
-        color: {COLORS['primary']};
-        font-weight: 700;
-        margin-bottom: 10px;
+        font-size: 1.05rem; color: {COLORS['primary']};
+        font-weight: 700; margin-bottom: 10px;
     }}
 
-    /* ── Section (blue panels) ── */
+    /* ── Section ── */
     .section {{
-        border-radius: 12px;
-        overflow: hidden;
+        border-radius: 12px; overflow: hidden;
         box-shadow: 0 2px 10px {COLORS['card_shadow']};
         margin-bottom: 16px;
     }}
     .section-header {{
         background: {COLORS['primary']};
-        color: white;
-        padding: 10px 20px;
-        font-size: 1.05rem;
-        font-weight: 700;
-        letter-spacing: 0.3px;
+        color: white; padding: 10px 20px;
+        font-size: 1.05rem; font-weight: 700;
     }}
     .section-body {{
         background: {COLORS['primary_light']};
-        padding: 16px 20px;
+        padding: 14px 10px;
     }}
 
-    /* ── Badge Row (tabela alinhada) ── */
+    /* ── Badge Table (alinhamento fixo) ── */
     .badge-table {{
         width: 100%;
         border-collapse: collapse;
+        table-layout: fixed;
     }}
     .badge-table td {{
-        padding: 7px 6px;
+        padding: 8px 6px;
         vertical-align: middle;
-        white-space: nowrap;
     }}
     .badge-table .cell-label {{
         color: white;
@@ -210,49 +182,41 @@ st.markdown(
         font-weight: 500;
         text-align: right;
         padding-right: 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
     .badge-table .cell-tag {{
         text-align: left;
+        width: 100px;
     }}
     .badge-tag {{
         display: inline-block;
-        padding: 4px 14px;
+        padding: 4px 12px;
         border-radius: 5px;
         font-size: 0.78rem;
         font-weight: 700;
         white-space: nowrap;
         letter-spacing: 0.3px;
+        min-width: 80px;
+        text-align: center;
     }}
 
-    /* ── Text lists (strengths / improve) ── */
-    .text-list {{
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }}
+    /* ── Text lists ── */
+    .text-list {{ list-style: none; padding: 0; margin: 0; }}
     .text-list li {{
-        color: white;
-        font-size: 0.95rem;
-        font-weight: 600;
+        color: white; font-size: 0.95rem; font-weight: 600;
         padding: 5px 0;
         border-bottom: 1px solid rgba(255,255,255,0.15);
     }}
-    .text-list li:last-child {{
-        border-bottom: none;
-    }}
+    .text-list li:last-child {{ border-bottom: none; }}
     .text-list .num {{
-        display: inline-block;
-        width: 24px;
-        height: 24px;
-        line-height: 24px;
-        text-align: center;
+        display: inline-block; width: 24px; height: 24px;
+        line-height: 24px; text-align: center;
         background: rgba(255,255,255,0.2);
-        border-radius: 50%;
-        font-size: 0.8rem;
-        margin-right: 8px;
+        border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
     }}
 
-    /* ── Radar wrapper – fundo escuro ── */
+    /* ── Radar ── */
     .radar-wrapper {{
         background: {COLORS['radar_bg']};
         border-radius: 0 0 12px 12px;
@@ -261,8 +225,7 @@ st.markdown(
 
     /* ── Streamlit overrides ── */
     div[data-testid="stSelectbox"] label {{
-        font-weight: 600;
-        color: {COLORS['primary']};
+        font-weight: 600; color: {COLORS['primary']};
     }}
     </style>
     """,
@@ -274,6 +237,8 @@ st.markdown(
 # FUNÇÕES AUXILIARES
 # ──────────────────────────────────────────────
 def badge_tag(level: str) -> str:
+    if not level:
+        return ""
     s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
     return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
 
@@ -287,25 +252,31 @@ def render_section(title: str, body_html: str) -> str:
     )
 
 
-def render_badges_table(items: dict, cols: int = 4) -> str:
-    """Renderiza badges numa tabela HTML com colunas fixas para alinhamento vertical."""
-    keys = list(items.keys())
-    rows_html = ""
-    for row_start in range(0, len(keys), cols):
-        row_keys = keys[row_start : row_start + cols]
-        cells = ""
-        for k in row_keys:
-            cells += f'<td class="cell-label">{k}</td>'
-            cells += f'<td class="cell-tag">{badge_tag(items[k])}</td>'
-        # Preenche colunas vazias se a linha não estiver completa
-        remaining = cols - len(row_keys)
-        cells += '<td></td><td></td>' * remaining
-        rows_html += f"<tr>{cells}</tr>"
-
-    # Monta colgroup para larguras consistentes
+def render_badges_table(items: list, cols: int = 4) -> str:
+    """
+    Recebe lista de tuplas (label, level).
+    Renderiza numa tabela com `cols` pares de colunas (label + tag),
+    todas com largura fixa para alinhar verticalmente entre seções.
+    """
+    # colgroup: cada par = label (flex) + tag (fixa)
     col_defs = ""
     for _ in range(cols):
-        col_defs += '<col style="width:auto"><col style="width:1%">'
+        col_defs += '<col style="width:auto"><col style="width:100px">'
+
+    rows_html = ""
+    for row_start in range(0, len(items), cols):
+        row_items = items[row_start : row_start + cols]
+        cells = ""
+        for label, level in row_items:
+            if label:
+                cells += f'<td class="cell-label">{label}</td>'
+                cells += f'<td class="cell-tag">{badge_tag(level)}</td>'
+            else:
+                cells += "<td></td><td></td>"
+        # Preenche restante
+        remaining = cols - len(row_items)
+        cells += "<td></td><td></td>" * remaining
+        rows_html += f"<tr>{cells}</tr>"
 
     return f'<table class="badge-table"><colgroup>{col_defs}</colgroup>{rows_html}</table>'
 
@@ -334,7 +305,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ──────────────────────────────────────────────
+# ───────���──────────────────────────────────────
 # SELETOR DE JOGADOR
 # ──────────────────────────────────────────────
 player_name = st.selectbox("Select Player", list(PLAYERS.keys()))
@@ -347,7 +318,6 @@ left_col, right_col = st.columns([1, 3], gap="large")
 
 # ── COLUNA ESQUERDA ──
 with left_col:
-    # Player Card
     st.markdown(
         f"""
         <div class="card player-card">
@@ -364,14 +334,13 @@ with left_col:
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # MoG Radar
+    # Radar
     categories = list(p["mog"].keys())
     values = list(p["mog"].values())
     categories_closed = categories + [categories[0]]
     values_closed = values + [values[0]]
 
     fig = go.Figure()
-
     fig.add_trace(
         go.Scatterpolar(
             r=values_closed,
@@ -383,13 +352,11 @@ with left_col:
             hovertemplate="%{theta}: %{r}<extra></extra>",
         )
     )
-
     fig.update_layout(
         polar=dict(
             bgcolor="rgba(255,255,255,0.04)",
             radialaxis=dict(
-                visible=True,
-                range=[0, 100],
+                visible=True, range=[0, 100],
                 showticklabels=False,
                 gridcolor="rgba(255,255,255,0.12)",
                 linecolor="rgba(255,255,255,0.05)",
@@ -408,9 +375,9 @@ with left_col:
     )
 
     st.markdown(
-        f'<div class="section">'
-        f'  <div class="section-header">MoG – Moments of the Game</div>'
-        f'  <div class="radar-wrapper">',
+        '<div class="section">'
+        '  <div class="section-header">MoG – Moments of the Game</div>'
+        '  <div class="radar-wrapper">',
         unsafe_allow_html=True,
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -419,13 +386,13 @@ with left_col:
 
 # ── COLUNA DIREITA ──
 with right_col:
-    # Technical  (4 colunas – 1ª coluna = General Passing / Crossing)
+    # Technical (8 itens → 2 linhas × 4 colunas)
     st.markdown(
         render_section("Technical", render_badges_table(p["technical"], cols=4)),
         unsafe_allow_html=True,
     )
 
-    # Player-Specific Indicators  (4 colunas para alinhar com Technical)
+    # Player-Specific (padded to 4 slots so columns align)
     st.markdown(
         render_section(
             "Player-Specific Indicators",
@@ -434,21 +401,19 @@ with right_col:
         unsafe_allow_html=True,
     )
 
-    # Mental  (4 colunas para manter o mesmo grid)
+    # Mental (padded to 4 slots)
     st.markdown(
         render_section("Mental", render_badges_table(p["mental"], cols=4)),
         unsafe_allow_html=True,
     )
 
-    # Strengths & Improve – lado a lado
+    # Strengths & Improve
     s_col, i_col = st.columns(2, gap="medium")
-
     with s_col:
         st.markdown(
             render_section("My Strengths", render_list(p["strengths"])),
             unsafe_allow_html=True,
         )
-
     with i_col:
         st.markdown(
             render_section("Need to Improve", render_list(p["improve"])),
