@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -10,7 +11,7 @@ st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
 DB_PATH = "sga_evaluations.db"
 
-# Logo sources
+# Logo sources (local base64 fallback to URL)
 LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
 LOGO_PATH = "assets/sga_logo.png"
 
@@ -32,7 +33,7 @@ FONT_DISPLAY = "'Orbitron', sans-serif"
 FONT_GRAPHIC = "'Source Sans 3', sans-serif"
 FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
 
-# Domain data
+# Domain definitions
 TECHNICAL_SKILLS = [
     "General Passing", "1st Touch", "Head. Direction", "1v1 Defending",
     "Crossing", "1v1 Attacking", "Aerials Duels", "Off Ball Def.",
@@ -44,8 +45,9 @@ MOG_CATEGORIES = [
 ]
 LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
-
+# ---------------------------
 # Database helpers
+# ---------------------------
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -108,7 +110,6 @@ def add_player(name, position, club, photo_url):
 
 
 def delete_player(player_id: int):
-    """Delete player and all related evaluations (cascade enabled)."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("PRAGMA foreign_keys = ON;")
@@ -168,10 +169,14 @@ def get_latest_evaluation(player_id):
             "strengths": strengths, "improvements": improvements}
 
 
-# UI navigation
+# ---------------------------
+# UI: Sidebar navigation
+# ---------------------------
 page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador", "📚 Jogadores"])
 
-# Create / List players
+# ---------------------------
+# Page: Cadastrar Jogador
+# ---------------------------
 if page == "➕ Cadastrar Jogador":
     st.header("Cadastrar Novo Jogador")
     with st.form("form_player"):
@@ -189,7 +194,9 @@ if page == "➕ Cadastrar Jogador":
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
 
-# New evaluation
+# ---------------------------
+# Page: Nova Avaliação
+# ---------------------------
 elif page == "📝 Nova Avaliação":
     st.header("Nova Avaliação")
     players_df = get_players()
@@ -205,15 +212,20 @@ elif page == "📝 Nova Avaliação":
         with cc:
             eval_date = st.date_input("Data", value=date.today())
         st.divider()
+
+        # Technical
         st.subheader("🎯 Technical")
         tc = st.columns(4)
         tv = {}
         for i, s in enumerate(TECHNICAL_SKILLS):
             with tc[i % 4]:
                 tv[s] = st.selectbox(s, LEVELS, key=f"t_{s}")
+
         st.divider()
+
+        # Player-specific (customizable)
         st.subheader("⚡ Player-Specific Indicators")
-        st.caption("Digite o nome do atributo e escolha a classificação.")
+        st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
         ps = {}
         pn = st.columns(4)
         pl = st.columns(4)
@@ -224,41 +236,64 @@ elif page == "📝 Nova Avaliação":
                 al = st.selectbox(f"Nível {i+1}", [""] + LEVELS, key=f"psl_{i}")
             if an.strip() and al:
                 ps[an.strip()] = al
+
         st.divider()
+
+        # Mental
         st.subheader("🧠 Mental")
         mc = st.columns(4)
         mv = {}
         for i, s in enumerate(MENTAL_SKILLS):
             with mc[i % 4]:
                 mv[s] = st.selectbox(s, LEVELS, key=f"m_{s}")
+
         st.divider()
-        st.subheader("📐 Moments of the Game")
+
+        # MoG
+        st.subheader("📐 Moments of the Game (MoG)")
         mgc = st.columns(5)
         mgv = {}
         for i, c in enumerate(MOG_CATEGORIES):
             with mgc[i]:
                 mgv[c] = st.slider(c, 0, 100, 50, key=f"mog_{c}")
+
         st.divider()
-        cs, ci = st.columns(2)
-        with cs:
-            st.subheader("💪 Strengths")
-            s1, s2, s3 = st.text_input("1"), st.text_input("2"), st.text_input("3")
-        with ci:
-            st.subheader("📈 Improve")
-            i1, i2, i3 = st.text_input("1 "), st.text_input("2 "), st.text_input("3 ")
+
+        # Strengths / Improve
+        col_s, col_i = st.columns(2)
+        with col_s:
+            st.subheader("💪 My Strengths")
+            s1 = st.text_input("Strength 1")
+            s2 = st.text_input("Strength 2")
+            s3 = st.text_input("Strength 3")
+        with col_i:
+            st.subheader("📈 Need to Improve")
+            i1 = st.text_input("Improvement 1")
+            i2 = st.text_input("Improvement 2")
+            i3 = st.text_input("Improvement 3")
+
         st.divider()
+
         if st.form_submit_button("💾 Salvar Avaliação", use_container_width=True):
             if not analyst.strip():
                 st.error("Nome do analista é obrigatório.")
             else:
-                pid = int(players_df.loc[players_df["name"] == player_name, "id"].iloc[0])
-                save_evaluation(pid, analyst.strip(), eval_date.isoformat(),
-                                {"technical": tv, "player_specific": ps, "mental": mv},
-                                mgv, [s1, s2, s3], [i1, i2, i3])
+                player_id = int(players_df.loc[players_df["name"] == player_name, "id"].iloc[0])
+                save_evaluation(
+                    player_id=player_id,
+                    analyst=analyst.strip(),
+                    eval_date=eval_date.isoformat(),
+                    skills={"technical": tv, "player_specific": ps, "mental": mv},
+                    mog=mgv,
+                    strengths=[s1, s2, s3],
+                    improvements=[i1, i2, i3],
+                )
                 st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
 
-# Players list page (new)
+# ---------------------------
+# Page: Jogadores (lista / ações)
+# ---------------------------
 elif page == "📚 Jogadores":
     st.header("Lista de Atletas Cadastrados")
 
@@ -266,7 +301,6 @@ elif page == "📚 Jogadores":
     if players_df.empty:
         st.info("Nenhum jogador cadastrado. Vá em 'Cadastrar Jogador' para adicionar.")
     else:
-        # Show table (use a nice df with columns)
         display_df = players_df[["id", "name", "position", "club", "photo_url"]].rename(
             columns={"id": "ID", "name": "Nome", "position": "Posição", "club": "Clube", "photo_url": "Foto URL"}
         )
@@ -277,7 +311,6 @@ elif page == "📚 Jogadores":
         st.markdown("---")
         st.subheader("Ações")
 
-        # Select a player to view details or delete
         sel_name = st.selectbox("Selecione um atleta", players_df["name"].tolist())
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
         st.markdown(f"**Nome:** {sel_row['name']}")
@@ -294,7 +327,6 @@ elif page == "📚 Jogadores":
                 else:
                     st.markdown("**Última Avaliação**")
                     st.markdown(f"**Analista:** {evaluation['analyst']}  •  **Data:** {evaluation['eval_date']}")
-                    # Show simple tables for skills
                     sk = evaluation["skills"]
                     if sk.get("technical"):
                         st.markdown("**Technical**")
@@ -318,19 +350,23 @@ elif page == "📚 Jogadores":
                     if evaluation.get("improvements"):
                         st.markdown("**Need to Improve**")
                         st.write(evaluation["improvements"])
+
         with col_delete:
-            if st.button("Apagar atleta (e avaliações)"):
-                if st.confirm := st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas"):
+            # Corrected: no walrus used; simple checkbox + confirm button flow
+            confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
+            if confirm:
+                if st.button("Confirmar exclusão"):
                     delete_player(int(sel_row["id"]))
                     st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                     st.experimental_rerun()
 
         st.markdown("---")
-        # Export CSV
         csv = display_df.to_csv(index=False).encode("utf-8")
         st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
 
-# Dashboard page (unchanged UI, keeps previous code)
+# ---------------------------
+# Page: Dashboard (full)
+# ---------------------------
 else:
     BADGE_STYLES = {
         "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
@@ -339,13 +375,13 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
-    # Load fonts
+    # Load Google fonts
     st.markdown(
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
-    # CSS (use % formatting to avoid f-string braces conflicts)
+    # CSS: use % formatting to avoid f-string braces conflicts
     _css = """
     <style>
     html, body, .stApp, .stApp * {
@@ -462,7 +498,7 @@ else:
         padding: 14px 20px;
     }
 
-    /* ── Badge Table — aligned columns, no truncation ── */
+    /* Badge Table: aligned columns, no truncation */
     .badge-table {
         width: 100%%;
         border-collapse: collapse;
@@ -579,30 +615,21 @@ else:
     def render_section(title, body):
         return '<div class="section"><div class="section-header">' + title + '</div><div class="section-body">' + body + "</div></div>"
 
-    # UPDATED function: builds table with colgroup (label-cols + tag-cols)
     def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
-        """
-        items: list of (label, level) pairs in the order you want columns to appear.
-        cols: number of columns per row (each column = label + tag).
-        tag_px: fixed px width for each tag column.
-        """
         # pad to multiple of cols
         if len(items) % cols != 0:
             remaining = cols - (len(items) % cols)
             items = items + [("", "")] * remaining
 
         total_tag_px = tag_px * cols
-        # label column width: remaining space divided by cols
         label_col_calc = f"calc((100% - {total_tag_px}px) / {cols})"
 
-        # colgroup HTML
         colgroup_html = "<colgroup>"
         for _ in range(cols):
             colgroup_html += f'<col class="label-col" style="width:{label_col_calc}">'
             colgroup_html += f'<col class="tag-col" style="width:{tag_px}px">'
         colgroup_html += "</colgroup>"
 
-        # rows
         rows_html = ""
         for row_start in range(0, len(items), cols):
             row_items = items[row_start: row_start + cols]
@@ -657,7 +684,7 @@ else:
         )
         return fig
 
-    # Header: logo + separator + title
+    # Header
     st.markdown(
         '<div class="header-bar">'
         '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
@@ -688,6 +715,7 @@ else:
             '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>",
             unsafe_allow_html=True,
         )
+
         if evaluation and evaluation["mog"]:
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
             st.markdown(
@@ -708,20 +736,21 @@ else:
                 unsafe_allow_html=True,
             )
             st.stop()
+
         sk = evaluation["skills"]
 
-        # Technical (keeps original order - indexes determine columns)
+        # Technical
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
         st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
-        # Player-specific: preserve slot order (1..4). pad to 4
+        # Player-specific (preserve input order, padded to 4)
         ps_data = sk.get("player_specific", {})
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) < 4:
             ps_items.append(("", ""))
         st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
 
-        # Mental: fixed order, pad to 4
+        # Mental (fixed order, padded)
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
         while len(m_items) < 4:
             m_items.append(("", ""))
