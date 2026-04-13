@@ -118,6 +118,21 @@ def delete_player(player_id: int):
     conn.close()
 
 
+# DB helper: update player (novo)
+def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE players SET name = ?, position = ?, club = ?, photo_url = ? WHERE id = ?",
+            (name.strip(), position.strip(), club.strip(), photo_url.strip(), player_id),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise
+    conn.close()
+
+
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     conn = get_db()
     cur = conn.cursor()
@@ -318,7 +333,8 @@ elif page == "📚 Jogadores":
         if sel_row["photo_url"]:
             st.image(sel_row["photo_url"], width=160)
 
-        col_view, col_delete = st.columns([1, 1])
+        # Três colunas: ver, apagar, editar
+        col_view, col_delete, col_edit = st.columns([1, 1, 1])
         with col_view:
             if st.button("Ver avaliações deste atleta"):
                 evaluation = get_latest_evaluation(int(sel_row["id"]))
@@ -352,13 +368,30 @@ elif page == "📚 Jogadores":
                         st.write(evaluation["improvements"])
 
         with col_delete:
-            # Corrected: no walrus used; simple checkbox + confirm button flow
             confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
             if confirm:
                 if st.button("Confirmar exclusão"):
                     delete_player(int(sel_row["id"]))
                     st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                     st.experimental_rerun()
+
+        with col_edit:
+            with st.expander("✏️ Editar jogador"):
+                with st.form(f"form_edit_{sel_row['id']}"):
+                    new_name = st.text_input("Nome completo *", value=sel_row["name"])
+                    new_position = st.text_input("Posição", value=sel_row["position"] or "")
+                    new_club = st.text_input("Clube", value=sel_row["club"] or "")
+                    new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
+                    if st.form_submit_button("💾 Salvar alterações"):
+                        if not new_name.strip():
+                            st.error("Nome é obrigatório.")
+                        else:
+                            try:
+                                update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
+                                st.success(f"✅ Jogador **{new_name}** atualizado com sucesso!")
+                                st.experimental_rerun()
+                            except sqlite3.IntegrityError:
+                                st.error("Já existe um jogador cadastrado com esse nome. Escolha outro nome.")
 
         st.markdown("---")
         csv = display_df.to_csv(index=False).encode("utf-8")
@@ -369,10 +402,10 @@ elif page == "📚 Jogadores":
 # ---------------------------
 else:
     BADGE_STYLES = {
-        "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},   # darker green, slightly transparent
-        "Good": {"bg": "rgba(102,187,106,0.72)", "fg": "#FFFFFF"},      # lighter green, more transparent (changed)
-        "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},    # amber, transparent
-        "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},  # red, transparent
+        "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},
+        "Good": {"bg": "rgba(102,187,106,0.72)", "fg": "#FFFFFF"},
+        "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},
+        "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},
     }
 
     # Load Google fonts
@@ -381,10 +414,11 @@ else:
         unsafe_allow_html=True,
     )
 
-_css = """
+    # CSS template with tokens to replace (avoid Python-format braces conflict)
+    _css_template = """
     <style>
     html, body, .stApp, .stApp * {
-        font-family: %(fg)s !important;
+        font-family: __FG__ !important;
     }
     .block-container {
         max-width: 1600px !important;
@@ -393,8 +427,8 @@ _css = """
     }
 
     .header-bar {
-        background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
-        padding: 28px 40px;             /* aumentei o padding vertical para acomodar o logo maior */
+        background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
+        padding: 28px 40px;
         border-radius: 12px;
         display: flex;
         align-items: center;
@@ -408,11 +442,11 @@ _css = """
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: url("data:image/svg+xml,%%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cg fill='none' fill-rule='evenodd'%%3E%%3Cg fill='%%23ffffff' fill-opacity='0.06'%%3E%%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'%%2F%%3E%%3C%%2Fg%%3E%%3C%%2Fg%%3E%%3C%%2Fsvg%%3E");
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         pointer-events: none;
     }
     .header-bar .header-logo {
-        height: 96px;                   /* aumentado de 64px para 96px */
+        height: 96px;
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
@@ -421,7 +455,7 @@ _css = """
     }
     .header-bar .header-sep {
         width: 2px;
-        height: 72px;                   /* aumentado de 48px para 72px para acompanhar o logo */
+        height: 72px;
         background: rgba(10,42,74,0.2);
         border-radius: 1px;
         flex-shrink: 0;
@@ -429,7 +463,7 @@ _css = """
         z-index: 1;
     }
     .header-bar h1 {
-        font-family: %(fd)s !important;
+        font-family: __FD__ !important;
         color: #0a2a4a;
         margin: 0;
         font-size: 2rem;
@@ -450,7 +484,7 @@ _css = """
     .player-card { text-align: center; }
     .player-card img {
         border-radius: 10px;
-        width: 100%%;
+        width: 100%;
         max-width: 180px;
         border: 3px solid #67b6fb;
     }
@@ -461,7 +495,7 @@ _css = """
         margin: 10px auto;
     }
     .player-card .label {
-        font-family: %(fg)s !important;
+        font-family: __FG__ !important;
         font-size: 0.72rem;
         color: #78909C;
         text-transform: uppercase;
@@ -469,7 +503,7 @@ _css = """
         font-weight: 700;
     }
     .player-card .value {
-        font-family: %(fg)s !important;
+        font-family: __FG__ !important;
         font-size: 1.05rem;
         color: #0D47A1;
         font-weight: 700;
@@ -486,7 +520,7 @@ _css = """
         background: #0D47A1;
         color: white;
         padding: 10px 20px;
-        font-family: %(fd)s !important;
+        font-family: __FD__ !important;
         font-size: 0.9rem;
         font-weight: 700;
         letter-spacing: 1px;
@@ -497,11 +531,10 @@ _css = """
         padding: 14px 20px;
     }
 
-    /* Badge Table: aligned columns, no truncation */
     .badge-table {
-        width: 100%%;
+        width: 100%;
         border-collapse: collapse;
-        table-layout: fixed;  /* fixed so colgroup widths are respected */
+        table-layout: fixed;
     }
     .badge-table td {
         padding: 8px 8px;
@@ -509,31 +542,30 @@ _css = """
     }
     .badge-table .cell-label {
         color: white;
-        font-family: %(fg)s !important;
+        font-family: __FG__ !important;
         font-size: 0.92rem;
         font-weight: 600;
         text-align: right;
         padding-right: 14px;
-        white-space: normal;     /* allow wrapping instead of ellipsis */
+        white-space: normal;
         word-break: break-word;
     }
     .badge-table .cell-tag {
         text-align: left;
-        white-space: nowrap;     /* badge must stay single-line */
+        white-space: nowrap;
     }
-     .badge-tag {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-family: %s !important;
-            font-size: 0.82rem;
-            font-weight: 700;
-            white-space: nowrap;
-            min-width: 90px;
-            text-align: center;
-            /* subtle inner shadow for elegance */
-            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
-        }
+    .badge-tag {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-family: __FG__ !important;
+        font-size: 0.82rem;
+        font-weight: 700;
+        white-space: nowrap;
+        min-width: 90px;
+        text-align: center;
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
+    }
 
     .text-list {
         list-style: none;
@@ -542,7 +574,7 @@ _css = """
     }
     .text-list li {
         color: white;
-        font-family: %(fdo)s !important;
+        font-family: __FDO__ !important;
         font-size: 0.95rem;
         font-weight: 600;
         padding: 5px 0;
@@ -555,7 +587,7 @@ _css = """
         line-height: 24px;
         text-align: center;
         background: rgba(255,255,255,0.2);
-        border-radius: 50%%;
+        border-radius: 50%;
         font-size: 0.8rem;
         margin-right: 8px;
     }
@@ -571,7 +603,7 @@ _css = """
         background: #0C1F3A;
         color: white;
         text-align: center;
-        font-family: %(fd)s !important;
+        font-family: __FD__ !important;
         font-size: 0.85rem;
         font-weight: 700;
         letter-spacing: 1.5px;
@@ -592,17 +624,19 @@ _css = """
         border-radius: 8px;
         padding: 8px 16px;
         margin-top: 8px;
-        font-family: %(fdo)s !important;
+        font-family: __FDO__ !important;
         font-size: 0.85rem;
         color: #546E7A;
     }
     div[data-testid="stSelectbox"] label {
         font-weight: 600;
         color: #0D47A1;
-        font-family: %(fg)s !important;
+        font-family: __FG__ !important;
     }
     </style>
-    """ % {"fd": FONT_DISPLAY, "fg": FONT_GRAPHIC, "fdo": FONT_DOCUMENT}
+    """
+
+    _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
 
     st.markdown(_css, unsafe_allow_html=True)
 
@@ -611,10 +645,10 @@ _css = """
         if not level:
             return ""
         s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
-        return '<span class="badge-tag" style="background:' + s["bg"] + ";color:" + s["fg"] + ';">' + level + "</span>"
+        return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
 
     def render_section(title, body):
-        return '<div class="section"><div class="section-header">' + title + '</div><div class="section-body">' + body + "</div></div>"
+        return f'<div class="section"><div class="section-header">{title}</div><div class="section-body">{body}</div></div>'
 
     def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
         # pad to multiple of cols
@@ -654,7 +688,7 @@ _css = """
             return '<span style="color:rgba(255,255,255,0.5);">—</span>'
         li = ""
         for i, t in enumerate(items):
-            li += '<li><span class="num">' + str(i + 1) + "</span>" + t + "</li>"
+            li += f'<li><span class="num">{i + 1}</span>{t}</li>'
         return '<ul class="text-list">' + li + "</ul>"
 
     def build_radar(mog_data):
@@ -685,15 +719,14 @@ _css = """
         )
         return fig
 
-    # Header
-    st.markdown(
-        '<div class="header-bar">'
-        '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
-        '<div class="header-sep"></div>'
-        '<h1>Individual Development Plan</h1>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+    # Header (use f-string to avoid messy concatenation)
+    st.markdown(f'''
+        <div class="header-bar">
+            <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
+            <div class="header-sep"></div>
+            <h1>Individual Development Plan</h1>
+        </div>
+        ''', unsafe_allow_html=True)
 
     players_df = get_players()
     if players_df.empty:
@@ -708,23 +741,18 @@ _css = """
 
     with left_col:
         photo = pr["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
-        st.markdown(
-            '<div class="card player-card">'
-            '<img src="' + str(photo) + '" alt="' + str(player_name) + '">'
-            '<div class="divider"></div>'
-            '<div class="label">Position</div><div class="value">' + str(pr["position"] or "—") + "</div>"
-            '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'''
+            <div class="card player-card">
+                <img src="{photo}" alt="{player_name}">
+                <div class="divider"></div>
+                <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
+                <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
+            </div>
+            ''', unsafe_allow_html=True)
 
         if evaluation and evaluation["mog"]:
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-            st.markdown(
-                '<div class="radar-outer">'
-                '<div class="radar-title">MoG – Moments of the Game</div>'
-                '<div class="radar-body">',
-                unsafe_allow_html=True,
-            )
+            st.markdown('<div class="radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
             fig = build_radar(evaluation["mog"])
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             st.markdown("</div></div>", unsafe_allow_html=True)
@@ -764,7 +792,6 @@ _css = """
             st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])), unsafe_allow_html=True)
 
         st.markdown(
-            '<div class="eval-meta">📅 <b>Avaliação:</b> ' + evaluation["eval_date"]
-            + " &nbsp;•&nbsp; 👤 <b>Analista:</b> " + evaluation["analyst"] + "</div>",
+            f'<div class="eval-meta">📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; 👤 <b>Analista:</b> {evaluation["analyst"]}</div>',
             unsafe_allow_html=True,
         )
