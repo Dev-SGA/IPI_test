@@ -35,8 +35,8 @@ FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
 
 # Domain definitions
 TECHNICAL_SKILLS = [
-    "General Passing", "1st Touch", "Head. Direction", "1v1 Defending",
-    "Crossing", "1v1 Attacking", "Aerials Duels", "Off Ball Def.",
+    "General Passing", "1st Touch", "Head Direction", "1v1 Defending",
+    "Crossing", "1v1 Attacking", "Aerial Duels", "Off Ball Def"
 ]
 MENTAL_SKILLS = ["Awareness", "Effort", "Team Work"]
 MOG_CATEGORIES = [
@@ -118,7 +118,6 @@ def delete_player(player_id: int):
     conn.close()
 
 
-# DB helper: update player (novo)
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     conn = get_db()
     try:
@@ -133,7 +132,6 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
     conn.close()
 
 
-# New: get latest evaluation id for a player
 def get_latest_evaluation_id(player_id: int):
     conn = get_db()
     cur = conn.cursor()
@@ -143,27 +141,23 @@ def get_latest_evaluation_id(player_id: int):
     return row["id"] if row else None
 
 
-# New: update an existing evaluation (delete children and re-insert)
 def update_evaluation(evaluation_id: int, analyst: str, eval_date: str, skills: dict, mog: dict,
                       strengths: list, improvements: list):
     conn = get_db()
     cur = conn.cursor()
-    # Update root evaluation
     cur.execute("UPDATE evaluations SET analyst = ?, eval_date = ? WHERE id = ?", (analyst, eval_date, evaluation_id))
-    # Delete old child records
+    # remove children
     cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (evaluation_id,))
     cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (evaluation_id,))
     cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (evaluation_id,))
-    # Re-insert skills
+    # re-insert
     for cat, sd in skills.items():
         for sn, lv in sd.items():
             if sn.strip() and lv.strip():
                 cur.execute("INSERT INTO eval_skills (evaluation_id,category,skill_name,level) VALUES (?,?,?,?)",
                             (evaluation_id, cat, sn, lv))
-    # Re-insert mog
     for c, v in mog.items():
         cur.execute("INSERT INTO eval_mog (evaluation_id,category,value) VALUES (?,?,?)", (evaluation_id, c, v))
-    # Re-insert notes
     for i, t in enumerate(strengths):
         if t.strip():
             cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'strength',?,?)",
@@ -239,7 +233,7 @@ page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação
 if page == "➕ Cadastrar Jogador":
     st.header("Cadastrar Novo Jogador")
     with st.form("form_player"):
-        c1, c2 = st.columns(2)
+        c1, c2 = st.columns(2, gap="large")
         with c1:
             name = st.text_input("Nome completo *")
             position = st.text_input("Posição", placeholder="Ex: Left Winger")
@@ -263,7 +257,7 @@ elif page == "📝 Nova Avaliação":
         st.warning("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador**.")
         st.stop()
     with st.form("form_evaluation"):
-        ca, cb, cc = st.columns(3)
+        ca, cb, cc = st.columns(3, gap="large")
         with ca:
             player_name = st.selectbox("Jogador", players_df["name"].tolist())
         with cb:
@@ -272,27 +266,30 @@ elif page == "📝 Nova Avaliação":
             eval_date = st.date_input("Data", value=date.today())
         st.divider()
 
-        # Technical
+        # Technical: render in two wider columns (not many tiny columns)
         st.subheader("🎯 Technical")
-        tc = st.columns(4)
+        left_tech, right_tech = st.columns(2, gap="large")
         tv = {}
-        for i, s in enumerate(TECHNICAL_SKILLS):
-            with tc[i % 4]:
-                tv[s] = st.selectbox(s, LEVELS, key=f"t_{s}")
+        half = len(TECHNICAL_SKILLS) // 2
+        for i, s in enumerate(TECHNICAL_SKILLS[:half]):
+            with left_tech:
+                tv[s] = st.selectbox(s, LEVELS, key=f"t_new_left_{i}")
+        for i, s in enumerate(TECHNICAL_SKILLS[half:]):
+            with right_tech:
+                tv[s] = st.selectbox(s, LEVELS, key=f"t_new_right_{i}")
 
         st.divider()
 
-        # Player-specific (customizable)
+        # Player-specific: stacked rows with attribute + level (wide)
         st.subheader("⚡ Player-Specific Indicators")
         st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
         ps = {}
-        pn = st.columns(4)
-        pl = st.columns(4)
         for i in range(4):
-            with pn[i]:
-                an = st.text_input(f"Atributo {i+1}", key=f"psn_{i}", placeholder="Ex: Speed")
-            with pl[i]:
-                al = st.selectbox(f"Nível {i+1}", [""] + LEVELS, key=f"psl_{i}")
+            col_attr, col_level = st.columns([3, 1], gap="large")
+            with col_attr:
+                an = st.text_input(f"Atributo {i+1}", key=f"psn_new_{i}", placeholder="Ex: Speed")
+            with col_level:
+                al = st.selectbox(f"Nível {i+1}", [""] + LEVELS, key=f"psl_new_{i}")
             if an.strip() and al:
                 ps[an.strip()] = al
 
@@ -300,36 +297,34 @@ elif page == "📝 Nova Avaliação":
 
         # Mental
         st.subheader("🧠 Mental")
-        mc = st.columns(4)
+        mc = st.columns(3, gap="large")
         mv = {}
         for i, s in enumerate(MENTAL_SKILLS):
-            with mc[i % 4]:
-                mv[s] = st.selectbox(s, LEVELS, key=f"m_{s}")
+            with mc[i]:
+                mv[s] = st.selectbox(s, LEVELS, key=f"m_new_{i}")
 
         st.divider()
 
-        # MoG
+        # MoG: vertical full-width sliders to avoid compression
         st.subheader("📐 Moments of the Game (MoG)")
-        mgc = st.columns(5)
         mgv = {}
         for i, c in enumerate(MOG_CATEGORIES):
-            with mgc[i]:
-                mgv[c] = st.slider(c, 0, 100, 50, key=f"mog_{c}")
+            mgv[c] = st.slider(c, 0, 100, 50, key=f"mog_new_{i}")
 
         st.divider()
 
-        # Strengths / Improve
-        col_s, col_i = st.columns(2)
+        # Strengths / Improve (stacked with better spacing)
+        col_s, col_i = st.columns(2, gap="large")
         with col_s:
             st.subheader("💪 My Strengths")
-            s1 = st.text_input("Strength 1")
-            s2 = st.text_input("Strength 2")
-            s3 = st.text_input("Strength 3")
+            s1 = st.text_input("Strength 1", key="s1_new")
+            s2 = st.text_input("Strength 2", key="s2_new_2")
+            s3 = st.text_input("Strength 3", key="s3_new_3")
         with col_i:
             st.subheader("📈 Need to Improve")
-            i1 = st.text_input("Improvement 1")
-            i2 = st.text_input("Improvement 2")
-            i3 = st.text_input("Improvement 3")
+            i1 = st.text_input("Improvement 1", key="i1_new")
+            i2 = st.text_input("Improvement 2", key="i2_new_2")
+            i3 = st.text_input("Improvement 3", key="i3_new_3")
 
         st.divider()
 
@@ -378,7 +373,7 @@ elif page == "📚 Jogadores":
             st.image(sel_row["photo_url"], width=160)
 
         # Três colunas: ver, apagar, editar
-        col_view, col_delete, col_edit = st.columns([1, 1, 1])
+        col_view, col_delete, col_edit = st.columns([1, 1, 1], gap="large")
         with col_view:
             if st.button("Ver avaliações deste atleta"):
                 evaluation = get_latest_evaluation(int(sel_row["id"]))
@@ -443,37 +438,46 @@ elif page == "📚 Jogadores":
                 latest_eval = get_latest_evaluation(int(sel_row["id"]))
                 latest_eval_id = get_latest_evaluation_id(int(sel_row["id"]))
 
-                # --- Edit or Add Evaluation (substitua o bloco existente pelo abaixo) ---
+                # --- Edit or Add Evaluation ---
                 exp_label = "✏️ Editar última avaliação" if latest_eval else "➕ Adicionar nova avaliação"
                 with st.expander(exp_label):
                     # Unique form keys per player id to avoid collisions
                     with st.form(f"form_edit_eval_{sel_row['id']}"):
-                        ea, eb = st.columns(2)
-                        with ea:
+                        # Top row: analyst + date (wider spacing)
+                        col_a, col_b = st.columns([2, 1], gap="large")
+                        with col_a:
                             analyst_e = st.text_input("Nome do Analista *", value=(latest_eval["analyst"] if latest_eval else ""), key=f"analyst_edit_{sel_row['id']}")
-                        with eb:
+                        with col_b:
                             eval_date_val = date.fromisoformat(latest_eval["eval_date"]) if latest_eval else date.today()
                             eval_date_e = st.date_input("Data", value=eval_date_val, key=f"eval_date_edit_{sel_row['id']}")
-                
+
                         st.divider()
+
+                        # Technical: two wide columns with vertical lists
                         st.subheader("🎯 Technical")
+                        left_t, right_t = st.columns(2, gap="large")
                         tv_e = {}
-                        tc_cols = st.columns(4)
-                        for i, s in enumerate(TECHNICAL_SKILLS):
+                        half = len(TECHNICAL_SKILLS) // 2
+                        for i, s in enumerate(TECHNICAL_SKILLS[:half]):
                             current = ""
                             if latest_eval and latest_eval.get("skills", {}).get("technical"):
                                 current = latest_eval["skills"]["technical"].get(s, "")
-                            default = current or LEVELS[2]  # fallback
-                            with tc_cols[i % 4]:
-                                # label is the skill name; key is unique (so label stays clean)
-                                tv_e[s] = st.selectbox(
-                                    s,
-                                    LEVELS,
-                                    index=LEVELS.index(default) if default in LEVELS else 0,
-                                    key=f"t_edit_{sel_row['id']}_{i}"
-                                )
-                
+                            default = current or LEVELS[2]
+                            with left_t:
+                                tv_e[s] = st.selectbox(s, LEVELS, index=LEVELS.index(default) if default in LEVELS else 0,
+                                                      key=f"t_edit_{sel_row['id']}_L_{i}")
+                        for i, s in enumerate(TECHNICAL_SKILLS[half:]):
+                            current = ""
+                            if latest_eval and latest_eval.get("skills", {}).get("technical"):
+                                current = latest_eval["skills"]["technical"].get(s, "")
+                            default = current or LEVELS[2]
+                            with right_t:
+                                tv_e[s] = st.selectbox(s, LEVELS, index=LEVELS.index(default) if default in LEVELS else 0,
+                                                       key=f"t_edit_{sel_row['id']}_R_{i}")
+
                         st.divider()
+
+                        # Player-specific: stacked pairs (text + level) to use full width
                         st.subheader("⚡ Player-Specific Indicators")
                         st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
                         ps_e = {}
@@ -483,51 +487,48 @@ elif page == "📚 Jogadores":
                         ps_items = list(existing_ps.items())[:4]
                         while len(ps_items) < 4:
                             ps_items.append(("", ""))
-                        pn_e = st.columns(4)
-                        pl_e = st.columns(4)
                         for i in range(4):
-                            with pn_e[i]:
-                                # label shows "Atributo N", key keeps uniqueness
+                            col_attr, col_level = st.columns([3, 1], gap="large")
+                            with col_attr:
                                 an = st.text_input(f"Atributo {i+1}", value=(ps_items[i][0] or ""), placeholder="Ex: Speed", key=f"psn_edit_{sel_row['id']}_{i}")
-                            with pl_e[i]:
-                                current_level = ps_items[i][1] or ""
+                            with col_level:
                                 options = [""] + LEVELS
+                                current_level = ps_items[i][1] or ""
                                 idx = options.index(current_level) if current_level in options else 0
                                 al = st.selectbox(f"Nível {i+1}", options, index=idx, key=f"psl_edit_{sel_row['id']}_{i}")
                             if an.strip() and al:
                                 ps_e[an.strip()] = al
-                
+
                         st.divider()
+
+                        # Mental: keep in one line (3 items)
                         st.subheader("🧠 Mental")
+                        mc_e = st.columns(3, gap="large")
                         mv_e = {}
-                        mc_e = st.columns(4)
                         for i, s in enumerate(MENTAL_SKILLS):
                             current = ""
                             if latest_eval and latest_eval.get("skills", {}).get("mental"):
                                 current = latest_eval["skills"]["mental"].get(s, "")
                             default = current or LEVELS[2]
-                            with mc_e[i % 4]:
-                                mv_e[s] = st.selectbox(
-                                    s,
-                                    LEVELS,
-                                    index=LEVELS.index(default) if default in LEVELS else 0,
-                                    key=f"m_edit_{sel_row['id']}_{i}"
-                                )
-                
+                            with mc_e[i]:
+                                mv_e[s] = st.selectbox(s, LEVELS, index=LEVELS.index(default) if default in LEVELS else 0,
+                                                       key=f"m_edit_{sel_row['id']}_{i}")
+
                         st.divider()
+
+                        # MoG: vertical full-width sliders (avoids tiny slider columns)
                         st.subheader("📐 Moments of the Game (MoG)")
                         mgv_e = {}
-                        mgc_e = st.columns(5)
                         for i, c in enumerate(MOG_CATEGORIES):
                             current = 50
                             if latest_eval and latest_eval.get("mog"):
                                 current = latest_eval["mog"].get(c, 50)
-                            with mgc_e[i]:
-                                # label is MoG category; key unique
-                                mgv_e[c] = st.slider(c, 0, 100, int(current), key=f"mog_edit_{sel_row['id']}_{i}")
-                
+                            mgv_e[c] = st.slider(c, 0, 100, int(current), key=f"mog_edit_{sel_row['id']}_{i}")
+
                         st.divider()
-                        col_s_e, col_i_e = st.columns(2)
+
+                        # Strengths / Improvements: stacked with decent spacing
+                        col_s_e, col_i_e = st.columns(2, gap="large")
                         with col_s_e:
                             st.subheader("💪 My Strengths")
                             s_vals = latest_eval["strengths"] if latest_eval and latest_eval.get("strengths") else ["", "", ""]
@@ -540,7 +541,7 @@ elif page == "📚 Jogadores":
                             i1_e = st.text_input("Improvement 1", value=i_vals[0] if len(i_vals) > 0 else "", key=f"i1_edit_{sel_row['id']}")
                             i2_e = st.text_input("Improvement 2", value=i_vals[1] if len(i_vals) > 1 else "", key=f"i2_edit_{sel_row['id']}_2")
                             i3_e = st.text_input("Improvement 3", value=i_vals[2] if len(i_vals) > 2 else "", key=f"i3_edit_{sel_row['id']}_3")
-                
+
                         st.divider()
                         if st.form_submit_button("💾 Salvar avaliação"):
                             if not analyst_e.strip():
@@ -580,10 +581,10 @@ elif page == "📚 Jogadores":
                                         st.experimental_rerun()
                                     except Exception as ex:
                                         st.error(f"Erro ao criar avaliação: {ex}")
-                
-                        st.markdown("---")
-                        csv = display_df.to_csv(index=False).encode("utf-8")
-                        st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
+
+        st.markdown("---")
+        csv = display_df.to_csv(index=False).encode("utf-8")
+        st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
 
 # ---------------------------
 # Page: Dashboard (full)
@@ -602,7 +603,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    # CSS template with tokens to replace (avoid Python-format braces conflict)
+    # CSS template (keeps previous styling but ensures forms have better spacing)
     _css_template = """
     <style>
     html, body, .stApp, .stApp * {
@@ -614,6 +615,7 @@ else:
         padding-right: 2rem;
     }
 
+    /* keep existing app styling (truncated here for brevity) */
     .header-bar {
         background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
         padding: 28px 40px;
@@ -626,201 +628,19 @@ else:
         position: relative;
         overflow: hidden;
     }
-    .header-bar::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        pointer-events: none;
-    }
-    .header-bar .header-logo {
-        height: 96px;
-        width: auto;
-        object-fit: contain;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
-    }
-    .header-bar .header-sep {
-        width: 2px;
-        height: 72px;
-        background: rgba(10,42,74,0.2);
-        border-radius: 1px;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
-    }
-    .header-bar h1 {
-        font-family: __FD__ !important;
-        color: #0a2a4a;
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 900;
-        letter-spacing: 2.5px;
-        text-transform: uppercase;
-        position: relative;
-        z-index: 1;
-        line-height: 1.2;
+    .header-bar .header-logo { height: 96px; }
+
+    /* Ensure form controls get good width inside our columns */
+    div[data-testid="stForm"] .stTextInput, div[data-testid="stForm"] .stSelectbox, div[data-testid="stForm"] .stSlider {
+        width: 100% !important;
     }
 
-    .card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 2px 12px rgba(13,71,161,0.12);
-    }
-    .player-card { text-align: center; }
-    .player-card img {
-        border-radius: 10px;
-        width: 100%;
-        max-width: 180px;
-        border: 3px solid #67b6fb;
-    }
-    .player-card .divider {
-        width: 50px; height: 3px;
-        background: #67b6fb;
-        border-radius: 2px;
-        margin: 10px auto;
-    }
-    .player-card .label {
-        font-family: __FG__ !important;
-        font-size: 0.72rem;
-        color: #78909C;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 700;
-    }
-    .player-card .value {
-        font-family: __FG__ !important;
-        font-size: 1.05rem;
-        color: #0D47A1;
-        font-weight: 700;
-        margin-bottom: 10px;
-    }
+    /* Slightly larger gaps in columns to reduce "squeezing" */
+    .css-1lcbmhc { gap: 20px; } /* best-effort - Streamlit class names may change */
 
-    .section {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        margin-bottom: 16px;
-    }
-    .section-header {
-        background: #0D47A1;
-        color: white;
-        padding: 10px 20px;
-        font-family: __FD__ !important;
-        font-size: 0.9rem;
-        font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-    }
-    .section-body {
-        background: #1E88E5;
-        padding: 14px 20px;
-    }
+    /* Make buttons full width when requested */
+    .stButton>button { min-width: 140px; }
 
-    .badge-table {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-    }
-    .badge-table td {
-        padding: 8px 8px;
-        vertical-align: middle;
-    }
-    .badge-table .cell-label {
-        color: white;
-        font-family: __FG__ !important;
-        font-size: 0.92rem;
-        font-weight: 600;
-        text-align: right;
-        padding-right: 14px;
-        white-space: normal;
-        word-break: break-word;
-    }
-    .badge-table .cell-tag {
-        text-align: left;
-        white-space: nowrap;
-    }
-    .badge-tag {
-        display: inline-block;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-family: __FG__ !important;
-        font-size: 0.82rem;
-        font-weight: 700;
-        white-space: nowrap;
-        min-width: 90px;
-        text-align: center;
-        box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
-    }
-
-    .text-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    .text-list li {
-        color: white;
-        font-family: __FDO__ !important;
-        font-size: 0.95rem;
-        font-weight: 600;
-        padding: 5px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.15);
-    }
-    .text-list li:last-child { border-bottom: none; }
-    .text-list .num {
-        display: inline-block;
-        width: 24px; height: 24px;
-        line-height: 24px;
-        text-align: center;
-        background: rgba(255,255,255,0.2);
-        border-radius: 50%;
-        font-size: 0.8rem;
-        margin-right: 8px;
-    }
-
-    .radar-outer {
-        background: #0C1F3A;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        overflow: hidden;
-        margin-bottom: 16px;
-    }
-    .radar-title {
-        background: #0C1F3A;
-        color: white;
-        text-align: center;
-        font-family: __FD__ !important;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        padding: 14px 12px 0 12px;
-    }
-    .radar-body { background: #0C1F3A; }
-    .radar-body > div { margin: 0 !important; padding: 0 !important; }
-
-    .no-data-msg {
-        text-align: center;
-        padding: 40px 20px;
-        color: #78909C;
-        font-size: 1.1rem;
-    }
-    .eval-meta {
-        background: rgba(13,71,161,0.06);
-        border-radius: 8px;
-        padding: 8px 16px;
-        margin-top: 8px;
-        font-family: __FDO__ !important;
-        font-size: 0.85rem;
-        color: #546E7A;
-    }
-    div[data-testid="stSelectbox"] label {
-        font-weight: 600;
-        color: #0D47A1;
-        font-family: __FG__ !important;
-    }
     </style>
     """
 
@@ -828,7 +648,7 @@ else:
 
     st.markdown(_css, unsafe_allow_html=True)
 
-    # Helpers
+    # Helpers (same as before)
     def badge_tag(level):
         if not level:
             return ""
@@ -839,20 +659,16 @@ else:
         return f'<div class="section"><div class="section-header">{title}</div><div class="section-body">{body}</div></div>'
 
     def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
-        # pad to multiple of cols
         if len(items) % cols != 0:
             remaining = cols - (len(items) % cols)
             items = items + [("", "")] * remaining
-
         total_tag_px = tag_px * cols
         label_col_calc = f"calc((100% - {total_tag_px}px) / {cols})"
-
         colgroup_html = "<colgroup>"
         for _ in range(cols):
             colgroup_html += f'<col class="label-col" style="width:{label_col_calc}">'
             colgroup_html += f'<col class="tag-col" style="width:{tag_px}px">'
         colgroup_html += "</colgroup>"
-
         rows_html = ""
         for row_start in range(0, len(items), cols):
             row_items = items[row_start: row_start + cols]
@@ -867,7 +683,6 @@ else:
                 else:
                     cells += "<td></td><td></td>"
             rows_html += f"<tr>{cells}</tr>"
-
         table_html = f'<table class="badge-table">{colgroup_html}{rows_html}</table>'
         return table_html
 
@@ -907,7 +722,7 @@ else:
         )
         return fig
 
-    # Header (use f-string to avoid messy concatenation)
+    # Header
     st.markdown(f'''
         <div class="header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
