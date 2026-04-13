@@ -298,7 +298,7 @@ elif page == "📚 Jogadores":
     st.header("Lista de Atletas Cadastrados")
 
     players_df = get_players()
-    if players_df.empty:
+    if players_df.empty():
         st.info("Nenhum jogador cadastrado. Vá em 'Cadastrar Jogador' para adicionar.")
     else:
         display_df = players_df[["id", "name", "position", "club", "photo_url"]].rename(
@@ -352,7 +352,6 @@ elif page == "📚 Jogadores":
                         st.write(evaluation["improvements"])
 
         with col_delete:
-            # Corrected: no walrus used; simple checkbox + confirm button flow
             confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
             if confirm:
                 if st.button("Confirmar exclusão"):
@@ -371,7 +370,7 @@ else:
     # Badge colors adjusted: slightly more transparent, and "Good" lighter green
     BADGE_STYLES = {
         "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},   # darker green, slightly transparent
-        "Good": {"bg": "rgba(76,175,80,0.75)", "fg": "#FFFFFF"},         # lighter green, more transparent
+        "Good": {"bg": "rgba(102,187,106,0.72)", "fg": "#FFFFFF"},      # lighter green, more transparent (changed)
         "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},    # amber, transparent
         "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},  # red, transparent
     }
@@ -382,11 +381,11 @@ else:
         unsafe_allow_html=True,
     )
 
-    # CSS: use % formatting to avoid f-string braces conflicts
-    _css = """
+    # Build CSS without string-format operations (avoids % interpolation issues)
+    css = """
     <style>
     html, body, .stApp, .stApp * {
-        font-family: %(fg)s !important;
+        font-family: %s !important;
     }
     .block-container {
         max-width: 1600px !important;
@@ -410,7 +409,7 @@ else:
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: url("data:image/svg+xml,%%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%%3E%%3Cg fill='none' fill-rule='evenodd'%%3E%%3Cg fill='%%23ffffff' fill-opacity='0.06'%%3E%%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'%%2F%%3E%%3C%%2Fg%%3E%%3C%%2Fg%%3E%%3C%%2Fsvg%%3E");
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         pointer-events: none;
     }
     .header-bar .header-logo {
@@ -431,7 +430,7 @@ else:
         z-index: 1;
     }
     .header-bar h1 {
-        font-family: %(fd)s !important;
+        font-family: %s !important;
         color: #0a2a4a;
         margin: 0;
         font-size: 2rem;
@@ -463,7 +462,7 @@ else:
         margin: 10px auto;
     }
     .player-card .label {
-        font-family: %(fg)s !important;
+        font-family: %s !important;
         font-size: 0.72rem;
         color: #78909C;
         text-transform: uppercase;
@@ -471,7 +470,7 @@ else:
         font-weight: 700;
     }
     .player-card .value {
-        font-family: %(fg)s !important;
+        font-family: %s !important;
         font-size: 1.05rem;
         color: #0D47A1;
         font-weight: 700;
@@ -488,7 +487,7 @@ else:
         background: #0D47A1;
         color: white;
         padding: 10px 20px;
-        font-family: %(fd)s !important;
+        font-family: %s !important;
         font-size: 0.9rem;
         font-weight: 700;
         letter-spacing: 1px;
@@ -511,7 +510,7 @@ else:
     }
     .badge-table .cell-label {
         color: white;
-        font-family: %(fg)s !important;
+        font-family: %s !important;
         font-size: 0.92rem;
         font-weight: 600;
         text-align: right;
@@ -527,7 +526,7 @@ else:
         display: inline-block;
         padding: 6px 12px;
         border-radius: 6px;
-        font-family: %(fg)s !important;
+        font-family: %s !important;
         font-size: 0.82rem;
         font-weight: 700;
         white-space: nowrap;
@@ -544,7 +543,7 @@ else:
     }
     .text-list li {
         color: white;
-        font-family: %(fdo)s !important;
+        font-family: %s !important;
         font-size: 0.95rem;
         font-weight: 600;
         padding: 5px 0;
@@ -573,7 +572,7 @@ else:
         background: #0C1F3A;
         color: white;
         text-align: center;
-        font-family: %(fd)s !important;
+        font-family: %s !important;
         font-size: 0.85rem;
         font-weight: 700;
         letter-spacing: 1.5px;
@@ -594,26 +593,39 @@ else:
         border-radius: 8px;
         padding: 8px 16px;
         margin-top: 8px;
-        font-family: %(fdo)s !important;
+        font-family: %s !important;
         font-size: 0.85rem;
         color: #546E7A;
     }
     div[data-testid="stSelectbox"] label {
         font-weight: 600;
         color: #0D47A1;
-        font-family: %(fg)s !important;
+        font-family: %s !important;
     }
     </style>
-    """ % {"fd": FONT_DISPLAY, "fg": FONT_GRAPHIC, "fdo": FONT_DOCUMENT}
+    """ % (
+        FONT_GRAPHIC,  # html base font
+        FONT_DISPLAY,  # header h1
+        FONT_GRAPHIC,  # player-card label font-family
+        FONT_GRAPHIC,  # player-card value font-family
+        FONT_DISPLAY,  # section-header font
+        FONT_GRAPHIC,  # badge label font
+        FONT_GRAPHIC,  # badge-tag font
+        FONT_DOCUMENT,  # text-list font
+        FONT_DISPLAY,  # radar-title font
+        FONT_DOCUMENT,  # eval-meta font
+        FONT_GRAPHIC,  # stSelectbox label font
+    )
 
-    st.markdown(_css, unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
 
     # Helpers
     def badge_tag(level):
         if not level:
             return ""
         s = BADGE_STYLES.get(level, {"bg": "rgba(97,97,97,0.75)", "fg": "#FFF"})
-        return '<span class="badge-tag" style="background:' + s["bg"] + ";color:" + s["fg"] + ';">' + level + "</span>"
+        # Return safe HTML for the badge (background already RGBA)
+        return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
 
     def render_section(title, body):
         return '<div class="section"><div class="section-header">' + title + '</div><div class="section-body">' + body + "</div></div>"
@@ -656,7 +668,7 @@ else:
             return '<span style="color:rgba(255,255,255,0.5);">—</span>'
         li = ""
         for i, t in enumerate(items):
-            li += '<li><span class="num">' + str(i + 1) + "</span>" + t + "</li>"
+            li += f'<li><span class="num">{i+1}</span>{t}</li>'
         return '<ul class="text-list">' + li + "</ul>"
 
     def build_radar(mog_data):
@@ -668,8 +680,8 @@ else:
         fig.add_trace(go.Scatterpolar(
             r=vals_c, theta=cats_c, fill="toself",
             fillcolor="rgba(100,181,246,0.30)",
-            line=dict(color="#64B5F6", width=2.5),
-            marker=dict(size=6, color="#64B5F6"),
+            line=dict(color="rgba(100,181,246,0.85)", width=2.5),
+            marker=dict(size=6, color="rgba(100,181,246,0.95)"),
         ))
         fig.update_layout(
             polar=dict(
@@ -683,14 +695,14 @@ else:
                                  rotation=90),
             ),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False, margin=dict(l=70, r=70, t=40, b=50), height=500,
+            showlegend=False, margin=dict(l=70, r=70, t=40, b=50), height=520,
         )
         return fig
 
     # Header
     st.markdown(
         '<div class="header-bar">'
-        '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
+        f'<img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">'
         '<div class="header-sep"></div>'
         '<h1>Individual Development Plan</h1>'
         '</div>',
@@ -698,7 +710,7 @@ else:
     )
 
     players_df = get_players()
-    if players_df.empty:
+    if players_df.empty():
         st.info("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador**.")
         st.stop()
 
@@ -712,7 +724,7 @@ else:
         photo = pr["photo_url"] or "https://via.placeholder.com/180x220/0D47A1/FFFFFF?text=No+Photo"
         st.markdown(
             '<div class="card player-card">'
-            '<img src="' + str(photo) + '" alt="' + str(player_name) + '">'
+            f'<img src="{photo}" alt="{player_name}">'
             '<div class="divider"></div>'
             '<div class="label">Position</div><div class="value">' + str(pr["position"] or "—") + "</div>"
             '<div class="label">Club</div><div class="value">' + str(pr["club"] or "—") + "</div></div>",
