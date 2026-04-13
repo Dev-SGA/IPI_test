@@ -155,9 +155,6 @@ def get_latest_evaluation(player_id):
 # ──────────────────────────────────────────────
 page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador"])
 
-# ══════════════════════════════════════════════
-# CADASTRAR JOGADOR
-# ══════════════════════════════════════════════
 if page == "➕ Cadastrar Jogador":
     st.header("Cadastrar Novo Jogador")
     with st.form("form_player"):
@@ -175,9 +172,6 @@ if page == "➕ Cadastrar Jogador":
                 add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                 st.success(f"✅ Jogador **{name}** cadastrado!")
 
-# ══════════════════════════════════════════════
-# NOVA AVALIAÇÃO
-# ══════════════════════════════════════════════
 elif page == "📝 Nova Avaliação":
     st.header("Nova Avaliação")
     players_df = get_players()
@@ -260,13 +254,10 @@ else:
     st.markdown(
         """
         <style>
-        /* ── Largura máxima expandida ── */
         .block-container {
             max-width: 1600px !important;
-            padding-left: 2rem;
-            padding-right: 2rem;
+            padding-left: 2rem; padding-right: 2rem;
         }
-
         .header-bar {
             background: linear-gradient(90deg, #0D47A1, #1565C0);
             padding: 20px 36px; border-radius: 12px;
@@ -281,7 +272,6 @@ else:
             letter-spacing: 2px; text-transform: uppercase;
         }
         .header-bar h1 { color: white; margin: 0; font-size: 1.65rem; font-weight: 800; }
-
         .card {
             background: white; border-radius: 12px; padding: 20px;
             box-shadow: 0 2px 12px rgba(13,71,161,0.12);
@@ -302,7 +292,6 @@ else:
         .player-card .value {
             font-size: 1.05rem; color: #0D47A1; font-weight: 700; margin-bottom: 10px;
         }
-
         .section {
             border-radius: 12px; overflow: hidden;
             box-shadow: 0 2px 10px rgba(13,71,161,0.12); margin-bottom: 16px;
@@ -312,40 +301,18 @@ else:
             padding: 10px 20px; font-size: 1.05rem; font-weight: 700;
         }
         .section-body { background: #1E88E5; padding: 14px 20px; }
-
-        /* ── Badge Table — SEM truncamento ── */
-        .badge-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: auto;       /* ← auto em vez de fixed */
-        }
-        .badge-table td {
-            padding: 8px 8px;
-            vertical-align: middle;
-        }
+        .badge-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+        .badge-table td { padding: 8px 8px; vertical-align: middle; }
         .badge-table .cell-label {
-            color: white;
-            font-size: 0.88rem;
-            font-weight: 500;
-            text-align: right;
-            padding-right: 10px;
-            white-space: nowrap;       /* ← sem quebra de linha */
+            color: white; font-size: 0.88rem; font-weight: 500;
+            text-align: right; padding-right: 10px; white-space: nowrap;
         }
-        .badge-table .cell-tag {
-            text-align: left;
-            white-space: nowrap;
-        }
+        .badge-table .cell-tag { text-align: left; white-space: nowrap; }
         .badge-tag {
-            display: inline-block;
-            padding: 5px 14px;
-            border-radius: 5px;
-            font-size: 0.82rem;
-            font-weight: 700;
-            white-space: nowrap;
-            min-width: 90px;
-            text-align: center;
+            display: inline-block; padding: 5px 14px; border-radius: 5px;
+            font-size: 0.82rem; font-weight: 700; white-space: nowrap;
+            min-width: 90px; text-align: center;
         }
-
         .text-list { list-style: none; padding: 0; margin: 0; }
         .text-list li {
             color: white; font-size: 0.95rem; font-weight: 600; padding: 5px 0;
@@ -358,12 +325,30 @@ else:
             border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
         }
 
-        .radar-container {
-            background: #0C1F3A; border-radius: 12px;
+        /* ── Radar: título via HTML acima do gráfico ── */
+        .radar-outer {
+            background: #0C1F3A;
+            border-radius: 12px;
             box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-            overflow: hidden; margin-bottom: 16px;
+            overflow: hidden;
+            margin-bottom: 16px;
         }
-        .radar-container > div { margin: 0 !important; padding: 0 !important; }
+        .radar-title {
+            background: #0C1F3A;
+            color: white;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 14px 12px 0 12px;
+            letter-spacing: 0.3px;
+        }
+        .radar-body {
+            background: #0C1F3A;
+        }
+        .radar-body > div {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
 
         .no-data-msg {
             text-align: center; padding: 40px 20px; color: #78909C; font-size: 1.1rem;
@@ -386,8 +371,7 @@ else:
 
     def render_section(title, body):
         return (
-            f'<div class="section">'
-            f'<div class="section-header">{title}</div>'
+            f'<div class="section"><div class="section-header">{title}</div>'
             f'<div class="section-body">{body}</div></div>'
         )
 
@@ -411,7 +395,45 @@ else:
         li = "".join(f'<li><span class="num">{i+1}</span>{t}</li>' for i, t in enumerate(items))
         return f'<ul class="text-list">{li}</ul>'
 
-    # Header
+    def build_radar(mog_data):
+        cats = list(mog_data.keys())
+        vals = list(mog_data.values())
+        # Labels curtos, sem <br> — nomes já cabem com margem generosa
+        cats_c = cats + [cats[0]]
+        vals_c = vals + [vals[0]]
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(
+            r=vals_c, theta=cats_c, fill="toself",
+            fillcolor="rgba(100,181,246,0.30)",
+            line=dict(color="#64B5F6", width=2.5),
+            marker=dict(size=6, color="#64B5F6"),
+        ))
+        fig.update_layout(
+            polar=dict(
+                bgcolor="rgba(255,255,255,0.03)",
+                # Radar ocupa quase todo o espaço, labels ficam nas margens
+                domain=dict(x=[0.0, 1.0], y=[0.0, 1.0]),
+                radialaxis=dict(
+                    visible=True, range=[0, 100], showticklabels=False,
+                    gridcolor="rgba(255,255,255,0.10)",
+                ),
+                angularaxis=dict(
+                    gridcolor="rgba(255,255,255,0.10)",
+                    tickfont=dict(size=12, color="#CFD8DC"),
+                    rotation=90,
+                ),
+            ),
+            paper_bgcolor="rgba(0,0,0,0)",  # transparente — fundo vem do CSS
+            plot_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            # Margens grandes = espaço para labels não cortarem
+            margin=dict(l=70, r=70, t=40, b=50),
+            height=500,
+        )
+        return fig
+
+    # ── Header ──
     st.markdown(
         '<div class="header-bar"><div class="logo">⚽</div>'
         '<div class="header-text"><span class="brand">SGA Performance</span>'
@@ -443,43 +465,17 @@ else:
 
         if evaluation and evaluation["mog"]:
             st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-            mog = evaluation["mog"]
-            cats = list(mog.keys())
-            vals = list(mog.values())
-            cd = []
-            for c in cats:
-                if len(c) > 12:
-                    parts = c.rsplit(" ", 1)
-                    cd.append("<br>".join(parts))
-                else:
-                    cd.append(c)
-            cd.append(cd[0])
-            vc = vals + [vals[0]]
 
-            fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(
-                r=vc, theta=cd, fill="toself",
-                fillcolor="rgba(100,181,246,0.30)",
-                line=dict(color="#64B5F6", width=2.5),
-                marker=dict(size=6, color="#64B5F6"),
-            ))
-            fig.update_layout(
-                title=dict(text="<b>MoG – Moments of the Game</b>",
-                           font=dict(size=15, color="white"), x=0.5, y=0.98),
-                polar=dict(
-                    bgcolor="rgba(255,255,255,0.03)",
-                    domain=dict(x=[0.15, 0.85], y=[0.0, 0.82]),
-                    radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
-                                    gridcolor="rgba(255,255,255,0.10)"),
-                    angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
-                                     tickfont=dict(size=11, color="#CFD8DC"), rotation=90),
-                ),
-                paper_bgcolor="#0C1F3A", plot_bgcolor="#0C1F3A",
-                showlegend=False, margin=dict(l=60, r=60, t=55, b=50), height=440,
+            # Título separado via HTML (mesmo fundo, sem gap)
+            st.markdown(
+                '<div class="radar-outer">'
+                '<div class="radar-title">MoG – Moments of the Game</div>'
+                '<div class="radar-body">',
+                unsafe_allow_html=True,
             )
-            st.markdown('<div class="radar-container">', unsafe_allow_html=True)
+            fig = build_radar(evaluation["mog"])
             st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
     with right_col:
         if not evaluation:
@@ -491,7 +487,6 @@ else:
             st.stop()
 
         sk = evaluation["skills"]
-
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
         st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
@@ -499,10 +494,7 @@ else:
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) < 4:
             ps_items.append(("", ""))
-        st.markdown(
-            render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)),
-            unsafe_allow_html=True,
-        )
+        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
 
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
         while len(m_items) < 4:
