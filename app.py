@@ -16,7 +16,7 @@ DB_PATH = "sga_evaluations.db"
 # ──────────────────────────────────────────────
 # LOGO
 # ──────────────────────────────────────────────
-LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
+LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
 LOGO_PATH = "assets/sga_logo.png"
 
 
@@ -269,34 +269,33 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
-    # ── Google Fonts — carregadas via <link> separado (sem f-string) ──
+    # Google Fonts
     st.markdown(
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900'
         '&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
-    # ── CSS — usando .format() em vez de f-string para evitar conflito de chaves ──
+    # CSS — usando % formatting
     _css = """
     <style>
     html, body, .stApp, .stApp * {
         font-family: %(fg)s !important;
     }
-
     .block-container {
         max-width: 1600px !important;
         padding-left: 2rem;
         padding-right: 2rem;
     }
 
-    /* HEADER */
+    /* ══ HEADER ══ */
     .header-bar {
         background: linear-gradient(135deg, #67b6fb 0%%, #5aaaf5 50%%, #4d9eef 100%%);
-        padding: 20px 36px;
+        padding: 22px 40px;
         border-radius: 12px;
         display: flex;
         align-items: center;
-        gap: 22px;
+        gap: 28px;
         margin-bottom: 24px;
         box-shadow: 0 4px 20px rgba(103,182,251,0.30);
         position: relative;
@@ -310,38 +309,36 @@ else:
         pointer-events: none;
     }
     .header-bar .header-logo {
-        height: 52px;
+        height: 64px;
         width: auto;
         object-fit: contain;
         flex-shrink: 0;
         position: relative;
         z-index: 1;
     }
-    .header-bar .header-text {
-        display: flex;
-        flex-direction: column;
+    .header-bar .header-sep {
+        width: 2px;
+        height: 48px;
+        background: rgba(10,42,74,0.2);
+        border-radius: 1px;
+        flex-shrink: 0;
         position: relative;
         z-index: 1;
-    }
-    .header-bar .brand {
-        font-family: %(fd)s !important;
-        color: rgba(10,42,74,0.55);
-        font-size: 0.65rem;
-        font-weight: 700;
-        letter-spacing: 4px;
-        text-transform: uppercase;
     }
     .header-bar h1 {
         font-family: %(fd)s !important;
         color: #0a2a4a;
         margin: 0;
-        font-size: 1.5rem;
+        font-size: 2rem;
         font-weight: 900;
-        letter-spacing: 2px;
+        letter-spacing: 2.5px;
         text-transform: uppercase;
+        position: relative;
+        z-index: 1;
+        line-height: 1.2;
     }
 
-    /* PLAYER CARD */
+    /* ══ PLAYER CARD ══ */
     .card {
         background: white;
         border-radius: 12px;
@@ -377,7 +374,7 @@ else:
         margin-bottom: 10px;
     }
 
-    /* SECTIONS */
+    /* ══ SECTIONS ══ */
     .section {
         border-radius: 12px;
         overflow: hidden;
@@ -399,7 +396,7 @@ else:
         padding: 14px 20px;
     }
 
-    /* BADGE TABLE */
+    /* ══ BADGE TABLE ══ */
     .badge-table {
         width: 100%%;
         border-collapse: collapse;
@@ -434,7 +431,7 @@ else:
         text-align: center;
     }
 
-    /* TEXT LISTS */
+    /* ══ TEXT LISTS ══ */
     .text-list {
         list-style: none;
         padding: 0;
@@ -460,7 +457,7 @@ else:
         margin-right: 8px;
     }
 
-    /* RADAR */
+    /* ══ RADAR ══ */
     .radar-outer {
         background: #0C1F3A;
         border-radius: 12px;
@@ -497,7 +494,6 @@ else:
         font-size: 0.85rem;
         color: #546E7A;
     }
-
     div[data-testid="stSelectbox"] label {
         font-weight: 600;
         color: #0D47A1;
@@ -568,14 +564,15 @@ else:
         )
         return fig
 
-    # ── HEADER ──
+    # ══════════════════════════════════════════
+    # HEADER — Logo + separador + título
+    # ══════════════════════════════════════════
     st.markdown(
         '<div class="header-bar">'
         '<img src="' + LOGO_SRC + '" alt="SGA Logo" class="header-logo">'
-        '<div class="header-text">'
-        '<span class="brand">SGA Performance</span>'
-        "<h1>Individual Development Plan</h1>"
-        "</div></div>",
+        '<div class="header-sep"></div>'
+        '<h1>Individual Development Plan</h1>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
