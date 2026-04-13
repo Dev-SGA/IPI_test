@@ -1,4 +1,5 @@
 # app.py
+# app.py
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -56,6 +57,7 @@ def get_db():
 def init_db():
     conn = get_db()
     conn.executescript("""
+        PRAGMA foreign_keys = ON;
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE, position TEXT, club TEXT, photo_url TEXT
@@ -64,25 +66,25 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             player_id INTEGER NOT NULL, analyst TEXT NOT NULL,
             eval_date TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (player_id) REFERENCES players(id)
+            FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS eval_skills (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL, category TEXT NOT NULL,
             skill_name TEXT NOT NULL, level TEXT NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
+            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS eval_mog (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL, category TEXT NOT NULL,
             value INTEGER NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
+            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS eval_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             evaluation_id INTEGER NOT NULL, note_type TEXT NOT NULL,
             position INTEGER NOT NULL, text TEXT NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id)
+            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
         );
     """)
     conn.commit()
@@ -103,6 +105,16 @@ def add_player(name, position, club, photo_url):
     conn = get_db()
     conn.execute("INSERT OR IGNORE INTO players (name,position,club,photo_url) VALUES (?,?,?,?)",
                  (name, position, club, photo_url))
+    conn.commit()
+    conn.close()
+
+
+def delete_player(player_id: int):
+    """Delete player and all related evaluations (cascade enabled)."""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("PRAGMA foreign_keys = ON;")
+    cur.execute("DELETE FROM players WHERE id = ?", (player_id,))
     conn.commit()
     conn.close()
 
@@ -159,7 +171,7 @@ def get_latest_evaluation(player_id):
 
 
 # UI navigation
-page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador"])
+page = st.sidebar.radio("Navegação", ["📊 Dashboard", "📝 Nova Avaliação", "➕ Cadastrar Jogador", "📚 Jogadores"])
 
 # Create / List players
 if page == "➕ Cadastrar Jogador":
@@ -248,7 +260,79 @@ elif page == "📝 Nova Avaliação":
                 st.success(f"✅ Avaliação de **{player_name}** salva!")
                 st.balloons()
 
-# Dashboard page
+# Players list page (new)
+elif page == "📚 Jogadores":
+    st.header("Lista de Atletas Cadastrados")
+
+    players_df = get_players()
+    if players_df.empty:
+        st.info("Nenhum jogador cadastrado. Vá em 'Cadastrar Jogador' para adicionar.")
+    else:
+        # Show table (use a nice df with columns)
+        display_df = players_df[["id", "name", "position", "club", "photo_url"]].rename(
+            columns={"id": "ID", "name": "Nome", "position": "Posição", "club": "Clube", "photo_url": "Foto URL"}
+        )
+
+        st.subheader("Tabela de Atletas")
+        st.dataframe(display_df, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Ações")
+
+        # Select a player to view details or delete
+        sel_name = st.selectbox("Selecione um atleta", players_df["name"].tolist())
+        sel_row = players_df[players_df["name"] == sel_name].iloc[0]
+        st.markdown(f"**Nome:** {sel_row['name']}")
+        st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
+        if sel_row["photo_url"]:
+            st.image(sel_row["photo_url"], width=160)
+
+        col_view, col_delete = st.columns([1, 1])
+        with col_view:
+            if st.button("Ver avaliações deste atleta"):
+                evaluation = get_latest_evaluation(int(sel_row["id"]))
+                if not evaluation:
+                    st.info("Nenhuma avaliação encontrada para este atleta.")
+                else:
+                    st.markdown("**Última Avaliação**")
+                    st.markdown(f"**Analista:** {evaluation['analyst']}  •  **Data:** {evaluation['eval_date']}")
+                    # Show simple tables for skills
+                    sk = evaluation["skills"]
+                    if sk.get("technical"):
+                        st.markdown("**Technical**")
+                        tdf = pd.DataFrame(list(sk.get("technical").items()), columns=["Skill", "Level"])
+                        st.table(tdf)
+                    if sk.get("player_specific"):
+                        st.markdown("**Player-Specific**")
+                        psdf = pd.DataFrame(list(sk.get("player_specific").items()), columns=["Skill", "Level"])
+                        st.table(psdf)
+                    if sk.get("mental"):
+                        st.markdown("**Mental**")
+                        mdf = pd.DataFrame(list(sk.get("mental").items()), columns=["Skill", "Level"])
+                        st.table(mdf)
+                    if evaluation.get("mog"):
+                        st.markdown("**MoG**")
+                        mogdf = pd.DataFrame(list(evaluation["mog"].items()), columns=["Category", "Value"])
+                        st.table(mogdf)
+                    if evaluation.get("strengths"):
+                        st.markdown("**Strengths**")
+                        st.write(evaluation["strengths"])
+                    if evaluation.get("improvements"):
+                        st.markdown("**Need to Improve**")
+                        st.write(evaluation["improvements"])
+        with col_delete:
+            if st.button("Apagar atleta (e avaliações)"):
+                if st.confirm := st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas"):
+                    delete_player(int(sel_row["id"]))
+                    st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
+                    st.experimental_rerun()
+
+        st.markdown("---")
+        # Export CSV
+        csv = display_df.to_csv(index=False).encode("utf-8")
+        st.download_button(label="Exportar lista como CSV", data=csv, file_name="players.csv", mime="text/csv")
+
+# Dashboard page (unchanged UI, keeps previous code)
 else:
     BADGE_STYLES = {
         "Above Level": {"bg": "#1B5E20", "fg": "#FFFFFF"},
@@ -632,9 +716,8 @@ else:
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
         st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
-        # Player-specific: we must preserve the slots order the analyst filled. We stored them by insertion order.
+        # Player-specific: preserve slot order (1..4). pad to 4
         ps_data = sk.get("player_specific", {})
-        # Build list in order: attempt to preserve insertion order (dict) — pad to 4 slots
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) < 4:
             ps_items.append(("", ""))
