@@ -1,4 +1,4 @@
-# app.py (v13) - reduzir espaço entre título e radar + evitar corte dos labels
+# app.py (v14) - corrige IntegrityError ao deletar jogador (remoção manual de dependências)
 import os
 import time
 import streamlit as st
@@ -89,8 +89,13 @@ def logout_admin():
 # Database helpers
 # ---------------------------
 def get_db():
+    # Ensure foreign keys are enabled on every new connection
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA foreign_keys = ON;")
+    except Exception:
+        pass
     return conn
 
 def init_db():
@@ -145,12 +150,35 @@ def add_player(name, position, club, photo_url):
     conn.close()
 
 def delete_player(player_id: int):
+    """
+    Safe deletion of a player and all related records.
+    Some deployed DBs may not have been created with ON DELETE CASCADE,
+    so delete dependent rows manually in the correct order.
+    """
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("PRAGMA foreign_keys = ON;")
-    cur.execute("DELETE FROM players WHERE id = ?", (player_id,))
-    conn.commit()
-    conn.close()
+    try:
+        cur.execute("PRAGMA foreign_keys = ON;")
+        # Find evaluations to delete related records
+        cur.execute("SELECT id FROM evaluations WHERE player_id = ?", (player_id,))
+        eval_ids = [row[0] for row in cur.fetchall()]
+
+        for eid in eval_ids:
+            cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (eid,))
+            cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (eid,))
+            cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (eid,))
+
+        # Delete evaluations
+        cur.execute("DELETE FROM evaluations WHERE player_id = ?", (player_id,))
+        # Finally delete player
+        cur.execute("DELETE FROM players WHERE id = ?", (player_id,))
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        conn.rollback()
+        # re-raise so upper-level UI can show an error message / Streamlit will capture it
+        raise
+    finally:
+        conn.close()
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     conn = get_db()
@@ -619,9 +647,12 @@ elif page == "📚 Jogadores":
                 confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
                 if confirm:
                     if st.button("Confirmar exclusão"):
-                        delete_player(int(sel_row["id"]))
-                        st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
-                        trigger_rerun()
+                        try:
+                            delete_player(int(sel_row["id"]))
+                            st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
+                            trigger_rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Erro ao apagar jogador: existem registros dependentes. Entre em contato com o administrador.")
 
         # RIGHT: Details / Radar / Meta (visual)
         with right_col:
