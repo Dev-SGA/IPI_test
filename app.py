@@ -369,10 +369,10 @@ elif page == "📚 Jogadores":
 # ---------------------------
 else:
     BADGE_STYLES = {
-        "Above Level": {"bg": "rgba(129,199,132,0.22)", "fg": "#1B5E20"},   # verde pastel translúcido
-        "Good":        {"bg": "rgba(102,187,106,0.20)", "fg": "#2E7D32"},   # verde claro suave
-        "Average":     {"bg": "rgba(255,224,130,0.18)", "fg": "#E6A817"},   # amarelo pastel suave
-        "Below Level": {"bg": "rgba(239,154,154,0.20)", "fg": "#C62828"},   # vermelho pastel translúcido
+       "Above Level": {"bg": "rgba(46,125,50,0.90)",  "fg": "#FFFFFF"},  # verde menos transparente, texto branco
+        "Good":        {"bg": "rgba(21,101,192,0.90)", "fg": "#FFFFFF"},  # azul menos transparente, texto branco
+        "Average":     {"bg": "rgba(255,167,38,0.90)", "fg": "#FFFFFF"},  # âmbar menos transparente, texto branco
+        "Below Level": {"bg": "rgba(198,40,40,0.90)",  "fg": "#FFFFFF"},  # vermelho menos transparente, texto branco
     }
 
     # Load Google fonts
@@ -523,18 +523,18 @@ else:
     }
     .badge-tag {
         display: inline-block;
-        padding: 8px 14px;                         /* ligeiramente maior para melhor leitura */
-        border-radius: 12px;                       /* mais arredondado */
+        padding: 8px 14px;                         /* leitura melhorada */
+        border-radius: 12px;
         font-family: %(fg)s !important;
         font-size: 0.88rem;
-        font-weight: 800;                          /* mais peso no texto */
+        font-weight: 800;
         white-space: nowrap;
         min-width: 90px;
         text-align: center;
-        color: #ffffff !important;                 /* força texto branco para contraste */
+        color: #ffffff !important;                 /* força texto branco */
         border: 1px solid rgba(255,255,255,0.06);  /* borda sutil para separação */
-        box-shadow: 0 4px 14px rgba(2,6,23,0.12);  /* sombra suave para destacar a badge sobre o cartão azul */
-        backdrop-filter: blur(2px);                /* leve desfoque se suportado (melhora contraste em algumas UIs) */
+        box-shadow: 0 4px 14px rgba(2,6,23,0.12);  /* sombra suave para destacar sobre o painel */
+        background-clip: padding-box;              /* garante borda limpa */
     }
 
     .text-list {
