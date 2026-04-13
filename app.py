@@ -1,4 +1,4 @@
-# app.py (v11) - imagens com tamanho fixo
+# app.py (v12) - imagens ajustadas para caber na caixa fixa (sem cortar)
 import os
 import time
 import streamlit as st
@@ -443,7 +443,11 @@ elif page == "📚 Jogadores":
                 st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
                 if sel_row["photo_url"]:
                     st.markdown(
-                        f'<img src="{sel_row["photo_url"]}" alt="player" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:10px;border:3px solid #67b6fb;display:block;margin:0 auto;">',
+                        f'''
+                        <div style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;margin:0 auto 8px auto;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:10px;border:3px solid #67b6fb;overflow:hidden;">
+                            <img src="{sel_row["photo_url"]}" alt="player" style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
+                        </div>
+                        ''',
                         unsafe_allow_html=True,
                     )
             else:
@@ -458,10 +462,14 @@ elif page == "📚 Jogadores":
                     new_club = st.text_input("Clube", value=sel_row["club"] or "")
                     new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
 
-                    # Preview da foto (fixa)
+                    # Preview da foto (fixa, ajustada com contain)
                     if new_photo.strip():
                         st.markdown(
-                            f'<div style="text-align:center;margin-bottom:8px;"><img src="{new_photo.strip()}" alt="preview" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:8px;border:2px solid rgba(0,0,0,0.08);"></div>',
+                            f'''
+                            <div style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;margin:0 auto 8px auto;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:8px;border:2px solid rgba(0,0,0,0.08);overflow:hidden;">
+                                <img src="{new_photo.strip()}" alt="preview" style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
+                            </div>
+                            ''',
                             unsafe_allow_html=True,
                         )
 
@@ -621,7 +629,11 @@ elif page == "📚 Jogadores":
             st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
             if sel_row["photo_url"]:
                 st.markdown(
-                    f'<img src="{sel_row["photo_url"]}" alt="player" style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;object-fit:cover;border-radius:10px;border:3px solid #67b6fb;display:block;margin:0 auto;">',
+                    f'''
+                    <div style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;margin:0 auto 8px auto;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:10px;border:3px solid #67b6fb;overflow:hidden;">
+                        <img src="{sel_row["photo_url"]}" alt="player" style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
+                    </div>
+                    ''',
                     unsafe_allow_html=True,
                 )
 
@@ -743,15 +755,6 @@ else:
         box-shadow: 0 2px 12px rgba(13,71,161,0.12);
     }
     .block-container .player-card { text-align: center; }
-    .block-container .player-card img {
-        border-radius: 10px;
-        width: __IMG_W__px;
-        height: __IMG_H__px;
-        object-fit: cover;
-        border: 3px solid #67b6fb;
-        display: block;
-        margin: 0 auto;
-    }
     .block-container .player-card .divider {
         width: 50px; height: 3px;
         background: #67b6fb;
@@ -901,7 +904,6 @@ else:
     """
 
     _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
-    _css = _css.replace("__IMG_W__", str(PLAYER_IMG_W)).replace("__IMG_H__", str(PLAYER_IMG_H))
     st.markdown(_css, unsafe_allow_html=True)
 
     # Helpers reused in dashboard
@@ -1007,7 +1009,16 @@ else:
         photo = pr["photo_url"] or ""
         if photo:
             st.markdown(
-                f'<div class="block-container card player-card"><img src="{photo}" alt="{player_name}"><div class="divider"></div><div class="label">Position</div><div class="value">{pr["position"] or "—"}</div><div class="label">Club</div><div class="value">{pr["club"] or "—"}</div></div>',
+                f'''
+                <div class="block-container card player-card">
+                    <div style="width:{PLAYER_IMG_W}px;height:{PLAYER_IMG_H}px;margin:0 auto 8px auto;display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:10px;border:3px solid #67b6fb;overflow:hidden;">
+                        <img src="{photo}" alt="{player_name}" style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
+                    </div>
+                    <div class="divider"></div>
+                    <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
+                    <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
+                </div>
+                ''',
                 unsafe_allow_html=True,
             )
         else:
