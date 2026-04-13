@@ -369,10 +369,10 @@ elif page == "📚 Jogadores":
 # ---------------------------
 else:
     BADGE_STYLES = {
-       "Above Level": {"bg": "rgba(46,125,50,0.90)",  "fg": "#FFFFFF"},  # verde menos transparente, texto branco
-        "Good":        {"bg": "rgba(21,101,192,0.90)", "fg": "#FFFFFF"},  # azul menos transparente, texto branco
-        "Average":     {"bg": "rgba(255,167,38,0.90)", "fg": "#FFFFFF"},  # âmbar menos transparente, texto branco
-        "Below Level": {"bg": "rgba(198,40,40,0.90)",  "fg": "#FFFFFF"},  # vermelho menos transparente, texto branco
+        "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},   # darker green, slightly transparent
+        "Good": {"bg": "rgba(102,187,106,0.72)", "fg": "#FFFFFF"},      # lighter green, more transparent (changed)
+        "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},    # amber, transparent
+        "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},  # red, transparent
     }
 
     # Load Google fonts
@@ -521,21 +521,19 @@ else:
         text-align: left;
         white-space: nowrap;     /* badge must stay single-line */
     }
-    .badge-tag {
-        display: inline-block;
-        padding: 8px 14px;                         /* leitura melhorada */
-        border-radius: 12px;
-        font-family: %(fg)s !important;
-        font-size: 0.88rem;
-        font-weight: 800;
-        white-space: nowrap;
-        min-width: 90px;
-        text-align: center;
-        color: #ffffff !important;                 /* força texto branco */
-        border: 1px solid rgba(255,255,255,0.06);  /* borda sutil para separação */
-        box-shadow: 0 4px 14px rgba(2,6,23,0.12);  /* sombra suave para destacar sobre o painel */
-        background-clip: padding-box;              /* garante borda limpa */
-    }
+     .badge-tag {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-family: %s !important;
+            font-size: 0.82rem;
+            font-weight: 700;
+            white-space: nowrap;
+            min-width: 90px;
+            text-align: center;
+            /* subtle inner shadow for elegance */
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
+        }
 
     .text-list {
         list-style: none;
