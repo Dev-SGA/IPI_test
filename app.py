@@ -14,19 +14,13 @@ st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 DB_PATH = "sga_evaluations.db"
 
 # ──────────────────────────────────────────────
-# LOGO — escolha UMA das 3 opções abaixo
+# LOGO
 # ──────────────────────────────────────────────
-
-# ── OPÇÃO 1: URL externa (mais simples) ──
-# Suba o logo para algum serviço (GitHub, Imgur, etc.) e cole a URL:
-LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
-
-# ── OPÇÃO 2: Arquivo local convertido em base64 (funciona offline) ──
-LOGO_PATH = "assets/sga_logo.png"   # caminho relativo ao app.py
+LOGO_URL = "https://raw.githubusercontent.com/SEU-USUARIO/SEU-REPO/main/assets/sga_logo.png"
+LOGO_PATH = "assets/sga_logo.png"
 
 
 def get_logo_base64(path: str) -> str:
-    """Converte imagem local para base64 data URI."""
     file = Path(path)
     if file.exists():
         b64 = base64.b64encode(file.read_bytes()).decode()
@@ -36,21 +30,7 @@ def get_logo_base64(path: str) -> str:
     return ""
 
 
-# Tenta local primeiro, senão usa URL
 LOGO_SRC = get_logo_base64(LOGO_PATH) or LOGO_URL
-
-
-# ── OPÇÃO 3: SVG inline (se tiver o SVG do logo) ──
-# Descomente e cole seu SVG aqui:
-# LOGO_SVG = '''
-# <svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
-#   <text x="10" y="45" font-size="40" font-weight="bold" fill="white"
-#         font-family="Arial">SGA</text>
-#   <text x="10" y="58" font-size="10" fill="#90CAF9"
-#         font-family="Arial" letter-spacing="3">PERFORMANCE</text>
-# </svg>
-# '''
-
 
 # ──────────────────────────────────────────────
 # SKILLS / LEVELS
@@ -68,7 +48,7 @@ LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
 
 # ──────────────────────────────────────────────
-# BANCO DE DADOS (mesmo das versões anteriores)
+# BANCO DE DADOS
 # ──────────────────────────────────────────────
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -124,10 +104,8 @@ def get_players():
 
 def add_player(name, position, club, photo_url):
     conn = get_db()
-    conn.execute(
-        "INSERT OR IGNORE INTO players (name, position, club, photo_url) VALUES (?,?,?,?)",
-        (name, position, club, photo_url),
-    )
+    conn.execute("INSERT OR IGNORE INTO players (name,position,club,photo_url) VALUES (?,?,?,?)",
+                 (name, position, club, photo_url))
     conn.commit()
     conn.close()
 
@@ -284,37 +262,43 @@ else:
         "Below Level": {"bg": "#C62828", "fg": "#FFFFFF"},
     }
 
+    # ── Fontes Google: Source Sans 3 + Trebuchet MS (sistema) ──
     st.markdown(
         f"""
+        <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">
         <style>
+        /* ── Tipografia global ── */
+        html, body, .stApp, .stApp * {{
+            font-family: 'Source Sans 3', 'Trebuchet MS', Trebuchet, sans-serif !important;
+        }}
+
         .block-container {{
             max-width: 1600px !important;
             padding-left: 2rem; padding-right: 2rem;
         }}
 
-        /* ── Header com logo ── */
+        /* ── Header — fundo #67b6fb ── */
         .header-bar {{
-            background: linear-gradient(90deg, #0a3d8f, #1976D2, #42A5F5);
+            background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
             padding: 18px 36px;
             border-radius: 12px;
             display: flex;
             align-items: center;
             gap: 20px;
             margin-bottom: 24px;
-            box-shadow: 0 4px 20px rgba(13,71,161,0.18);
+            box-shadow: 0 4px 20px rgba(103,182,251,0.30);
             position: relative;
             overflow: hidden;
         }}
-        /* Textura sutil de fundo */
         .header-bar::before {{
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
             pointer-events: none;
         }}
         .header-bar .header-logo {{
-            height: 50px;
+            height: 52px;
             width: auto;
             object-fit: contain;
             flex-shrink: 0;
@@ -327,22 +311,25 @@ else:
             position: relative;
             z-index: 1;
         }}
+        .header-bar h1 {{
+            color: #0a2a4a;
+            margin: 0;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }}
         .header-bar .brand {{
-            color: rgba(255,255,255,0.7);
+            color: rgba(10,42,74,0.6);
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
             font-size: 0.7rem;
-            font-weight: 600;
+            font-weight: 700;
             letter-spacing: 3px;
             text-transform: uppercase;
         }}
-        .header-bar h1 {{
-            color: white;
-            margin: 0;
-            font-size: 1.6rem;
-            font-weight: 800;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }}
 
+        /* ── Cards ── */
         .card {{
             background: white; border-radius: 12px; padding: 20px;
             box-shadow: 0 2px 12px rgba(13,71,161,0.12);
@@ -350,43 +337,61 @@ else:
         .player-card {{ text-align: center; }}
         .player-card img {{
             border-radius: 10px; width: 100%; max-width: 180px;
-            border: 3px solid #90CAF9;
+            border: 3px solid #67b6fb;
         }}
         .player-card .divider {{
-            width: 50px; height: 3px; background: #1E88E5;
+            width: 50px; height: 3px; background: #67b6fb;
             border-radius: 2px; margin: 10px auto;
         }}
         .player-card .label {{
-            font-size: 0.75rem; color: #78909C;
-            text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600;
+            font-size: 0.72rem; color: #78909C;
+            text-transform: uppercase; letter-spacing: 1.5px;
+            font-weight: 700;
         }}
         .player-card .value {{
-            font-size: 1.05rem; color: #0D47A1; font-weight: 700; margin-bottom: 10px;
+            font-size: 1.05rem; color: #0D47A1;
+            font-weight: 700; margin-bottom: 10px;
         }}
+
+        /* ── Sections ── */
         .section {{
             border-radius: 12px; overflow: hidden;
             box-shadow: 0 2px 10px rgba(13,71,161,0.12); margin-bottom: 16px;
         }}
         .section-header {{
             background: #0D47A1; color: white;
-            padding: 10px 20px; font-size: 1.05rem; font-weight: 700;
+            padding: 10px 20px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
         }}
-        .section-body {{ background: #1E88E5; padding: 14px 20px; }}
+        .section-body {{
+            background: #1E88E5; padding: 14px 20px;
+        }}
+
+        /* ── Badge Table ── */
         .badge-table {{ width: 100%; border-collapse: collapse; table-layout: auto; }}
         .badge-table td {{ padding: 8px 8px; vertical-align: middle; }}
         .badge-table .cell-label {{
-            color: white; font-size: 0.88rem; font-weight: 500;
+            color: white;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
+            font-size: 0.88rem; font-weight: 600;
             text-align: right; padding-right: 10px; white-space: nowrap;
         }}
         .badge-table .cell-tag {{ text-align: left; white-space: nowrap; }}
         .badge-tag {{
             display: inline-block; padding: 5px 14px; border-radius: 5px;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
             font-size: 0.82rem; font-weight: 700; white-space: nowrap;
             min-width: 90px; text-align: center;
         }}
+
+        /* ── Text lists ── */
         .text-list {{ list-style: none; padding: 0; margin: 0; }}
         .text-list li {{
-            color: white; font-size: 0.95rem; font-weight: 600; padding: 5px 0;
+            color: white;
+            font-family: 'Trebuchet MS', 'Source Sans 3', sans-serif !important;
+            font-size: 0.95rem; font-weight: 600; padding: 5px 0;
             border-bottom: 1px solid rgba(255,255,255,0.15);
         }}
         .text-list li:last-child {{ border-bottom: none; }}
@@ -395,6 +400,8 @@ else:
             text-align: center; background: rgba(255,255,255,0.2);
             border-radius: 50%; font-size: 0.8rem; margin-right: 8px;
         }}
+
+        /* ── Radar ── */
         .radar-outer {{
             background: #0C1F3A; border-radius: 12px;
             box-shadow: 0 2px 10px rgba(13,71,161,0.12);
@@ -402,18 +409,27 @@ else:
         }}
         .radar-title {{
             background: #0C1F3A; color: white; text-align: center;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
             font-size: 1rem; font-weight: 700;
             padding: 14px 12px 0 12px;
         }}
         .radar-body {{ background: #0C1F3A; }}
         .radar-body > div {{ margin: 0 !important; padding: 0 !important; }}
+
         .no-data-msg {{
             text-align: center; padding: 40px 20px; color: #78909C; font-size: 1.1rem;
         }}
         .eval-meta {{
             background: rgba(13,71,161,0.06); border-radius: 8px;
             padding: 8px 16px; margin-top: 8px;
+            font-family: 'Trebuchet MS', 'Source Sans 3', sans-serif !important;
             font-size: 0.85rem; color: #546E7A;
+        }}
+
+        /* ── Streamlit overrides ── */
+        div[data-testid="stSelectbox"] label {{
+            font-weight: 600; color: #0D47A1;
+            font-family: 'Source Sans 3', 'Trebuchet MS', sans-serif !important;
         }}
         </style>
         """,
@@ -469,7 +485,9 @@ else:
                 radialaxis=dict(visible=True, range=[0, 100], showticklabels=False,
                                 gridcolor="rgba(255,255,255,0.10)"),
                 angularaxis=dict(gridcolor="rgba(255,255,255,0.10)",
-                                 tickfont=dict(size=12, color="#CFD8DC"), rotation=90),
+                                 tickfont=dict(size=12, color="#CFD8DC",
+                                               family="Source Sans 3, Trebuchet MS, sans-serif"),
+                                 rotation=90),
             ),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             showlegend=False, margin=dict(l=70, r=70, t=40, b=50), height=500,
@@ -477,7 +495,7 @@ else:
         return fig
 
     # ══════════════════════════════════════════
-    # HEADER COM LOGO
+    # HEADER COM LOGO + COR #67b6fb
     # ══════════════════════════════════════════
     st.markdown(
         f"""
@@ -548,8 +566,7 @@ else:
         st.markdown(render_section("Mental", render_badges_table(m_items, 4)), unsafe_allow_html=True)
         sc, ic = st.columns(2, gap="medium")
         with sc:
-            st.markdown(render_section("My Strengths", render_list(evaluation["strengths"])),
-                        unsafe_allow_html=True)
+            st.markdown(render_section("My Strengths", render_list(evaluation["strengths"])), unsafe_allow_html=True)
         with ic:
             st.markdown(render_section("Need to Improve", render_list(evaluation["improvements"])),
                         unsafe_allow_html=True)
