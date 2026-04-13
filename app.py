@@ -62,17 +62,17 @@ PLAYERS = {
 # PALETA DE CORES
 # ──────────────────────────────────────────────
 COLORS = {
-    "primary":      "#0D47A1",
-    "primary_mid":  "#1565C0",
+    "primary":       "#0D47A1",
+    "primary_mid":   "#1565C0",
     "primary_light": "#1E88E5",
-    "accent":       "#90CAF9",
-    "card_bg":      "#FFFFFF",
-    "card_shadow":  "rgba(13,71,161,0.12)",
+    "accent":        "#90CAF9",
+    "card_bg":       "#FFFFFF",
+    "card_shadow":   "rgba(13,71,161,0.12)",
     "page_bg_start": "#e8eef7",
     "page_bg_end":   "#d0dff0",
-    "radar_bg":     "#102A4E",
-    "radar_fill":   "rgba(30,136,229,0.40)",
-    "radar_line":   "#64B5F6",
+    "radar_bg":      "#0C1F3A",
+    "radar_fill":    "rgba(30,136,229,0.40)",
+    "radar_line":    "#64B5F6",
 }
 
 BADGE_STYLES = {
@@ -194,26 +194,28 @@ st.markdown(
         padding: 16px 20px;
     }}
 
-    /* ── Badge Grid ── */
-    .badge-grid {{
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px 16px;
-        justify-content: flex-start;
+    /* ── Badge Row (tabela alinhada) ── */
+    .badge-table {{
+        width: 100%;
+        border-collapse: collapse;
     }}
-    .badge-item {{
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 0;
+    .badge-table td {{
+        padding: 7px 6px;
+        vertical-align: middle;
+        white-space: nowrap;
     }}
-    .badge-label {{
+    .badge-table .cell-label {{
         color: white;
         font-size: 0.88rem;
         font-weight: 500;
-        white-space: nowrap;
+        text-align: right;
+        padding-right: 8px;
+    }}
+    .badge-table .cell-tag {{
+        text-align: left;
     }}
     .badge-tag {{
+        display: inline-block;
         padding: 4px 14px;
         border-radius: 5px;
         font-size: 0.78rem;
@@ -250,11 +252,11 @@ st.markdown(
         margin-right: 8px;
     }}
 
-    /* ── Radar wrapper ── */
+    /* ── Radar wrapper – fundo escuro ── */
     .radar-wrapper {{
         background: {COLORS['radar_bg']};
         border-radius: 0 0 12px 12px;
-        padding: 12px 8px 8px 8px;
+        padding: 16px 12px 12px 12px;
     }}
 
     /* ── Streamlit overrides ── */
@@ -268,17 +270,12 @@ st.markdown(
 )
 
 
-# ─────────────────────────────────────────���────
+# ──────────────────────────────────────────────
 # FUNÇÕES AUXILIARES
 # ──────────────────────────────────────────────
-def badge_html(label: str, level: str) -> str:
+def badge_tag(level: str) -> str:
     s = BADGE_STYLES.get(level, {"bg": "#616161", "fg": "#FFF"})
-    return (
-        f'<div class="badge-item">'
-        f'  <span class="badge-label">{label}</span>'
-        f'  <span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
-        f'</div>'
-    )
+    return f'<span class="badge-tag" style="background:{s["bg"]};color:{s["fg"]};">{level}</span>'
 
 
 def render_section(title: str, body_html: str) -> str:
@@ -290,9 +287,27 @@ def render_section(title: str, body_html: str) -> str:
     )
 
 
-def render_badges(items: dict) -> str:
-    cells = "".join(badge_html(k, v) for k, v in items.items())
-    return f'<div class="badge-grid">{cells}</div>'
+def render_badges_table(items: dict, cols: int = 4) -> str:
+    """Renderiza badges numa tabela HTML com colunas fixas para alinhamento vertical."""
+    keys = list(items.keys())
+    rows_html = ""
+    for row_start in range(0, len(keys), cols):
+        row_keys = keys[row_start : row_start + cols]
+        cells = ""
+        for k in row_keys:
+            cells += f'<td class="cell-label">{k}</td>'
+            cells += f'<td class="cell-tag">{badge_tag(items[k])}</td>'
+        # Preenche colunas vazias se a linha não estiver completa
+        remaining = cols - len(row_keys)
+        cells += '<td></td><td></td>' * remaining
+        rows_html += f"<tr>{cells}</tr>"
+
+    # Monta colgroup para larguras consistentes
+    col_defs = ""
+    for _ in range(cols):
+        col_defs += '<col style="width:auto"><col style="width:1%">'
+
+    return f'<table class="badge-table"><colgroup>{col_defs}</colgroup>{rows_html}</table>'
 
 
 def render_list(items: list) -> str:
@@ -357,7 +372,6 @@ with left_col:
 
     fig = go.Figure()
 
-    # Polígono preenchido
     fig.add_trace(
         go.Scatterpolar(
             r=values_closed,
@@ -377,23 +391,22 @@ with left_col:
                 visible=True,
                 range=[0, 100],
                 showticklabels=False,
-                gridcolor="rgba(255,255,255,0.1)",
+                gridcolor="rgba(255,255,255,0.12)",
                 linecolor="rgba(255,255,255,0.05)",
             ),
             angularaxis=dict(
-                gridcolor="rgba(255,255,255,0.1)",
+                gridcolor="rgba(255,255,255,0.12)",
                 linecolor="rgba(255,255,255,0.15)",
                 tickfont=dict(size=11, color="#B0BEC5"),
             ),
         ),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor=COLORS["radar_bg"],
+        plot_bgcolor=COLORS["radar_bg"],
         showlegend=False,
         margin=dict(l=50, r=50, t=30, b=30),
         height=320,
     )
 
-    # Envolve com fundo escuro + header
     st.markdown(
         f'<div class="section">'
         f'  <div class="section-header">MoG – Moments of the Game</div>'
@@ -406,21 +419,24 @@ with left_col:
 
 # ── COLUNA DIREITA ──
 with right_col:
-    # Technical
+    # Technical  (4 colunas – 1ª coluna = General Passing / Crossing)
     st.markdown(
-        render_section("Technical", render_badges(p["technical"])),
+        render_section("Technical", render_badges_table(p["technical"], cols=4)),
         unsafe_allow_html=True,
     )
 
-    # Player-Specific Indicators
+    # Player-Specific Indicators  (4 colunas para alinhar com Technical)
     st.markdown(
-        render_section("Player-Specific Indicators", render_badges(p["player_specific"])),
+        render_section(
+            "Player-Specific Indicators",
+            render_badges_table(p["player_specific"], cols=4),
+        ),
         unsafe_allow_html=True,
     )
 
-    # Mental
+    # Mental  (4 colunas para manter o mesmo grid)
     st.markdown(
-        render_section("Mental", render_badges(p["mental"])),
+        render_section("Mental", render_badges_table(p["mental"], cols=4)),
         unsafe_allow_html=True,
     )
 
