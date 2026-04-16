@@ -1,4 +1,4 @@
-# app.py (v17) - estética v14 restaurada + Supabase como backend persistente
+# app.py (v18) - estética v14 restaurada + Supabase backend (corrige chamadas .order incompatíveis)
 import os
 import time
 import streamlit as st
@@ -98,22 +98,33 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
 def init_db():
     # Schema should be created in Supabase SQL Editor (see instructions).
     return
 
 init_db()
 
+
 def get_players():
+    """
+    Retrieve players from Supabase. Sort client-side to avoid depending on .order()
+    variations across client versions.
+    Returns a DataFrame with columns: id, name, position, club, photo_url
+    """
     if not supabase:
-        # return empty DF with expected columns
         return pd.DataFrame(columns=["id", "name", "position", "club", "photo_url"])
-    resp = supabase.table("players").select("*").order("name", ascending=True).execute()
+    resp = supabase.table("players").select("*").execute()
     data = resp.data or []
     df = pd.DataFrame(data)
     if not df.empty:
-        df = df.reset_index(drop=True)
+        # ensure consistent ordering and index
+        if "name" in df.columns:
+            df = df.sort_values("name").reset_index(drop=True)
+        else:
+            df = df.reset_index(drop=True)
     return df
+
 
 def add_player(name, position, club, photo_url):
     if not supabase:
@@ -121,14 +132,13 @@ def add_player(name, position, club, photo_url):
     payload = {"name": name, "position": position, "club": club, "photo_url": photo_url}
     resp = supabase.table("players").insert(payload).execute()
     if resp.error:
-        # raise the error message for UI to handle
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
+
 
 def delete_player(player_id: int):
     """
     With FK = ON DELETE CASCADE in DB, deleting the player is sufficient.
-    If that isn't available for some reason, Supabase will return an error.
     """
     if not supabase:
         raise Exception("Supabase não configurado.")
@@ -136,6 +146,7 @@ def delete_player(player_id: int):
     if resp.error:
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
+
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     if not supabase:
@@ -146,10 +157,10 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
 
+
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     if not supabase:
         raise Exception("Supabase não configurado.")
-    # Inserir evaluation e depois os items relacionados
     ev = {"player_id": player_id, "analyst": analyst, "eval_date": eval_date}
     resp = supabase.table("evaluations").insert(ev).execute()
     if resp.error or not resp.data:
@@ -183,6 +194,7 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
 
     return eid
 
+
 def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
     if not supabase:
         raise Exception("Supabase não configurado.")
@@ -191,15 +203,16 @@ def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
 
+
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
     if not supabase:
         raise Exception("Supabase não configurado.")
-    # Apaga conteúdo antigo e insere o novo
+    # delete old
     supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
     supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
     supabase.table("eval_notes").delete().eq("evaluation_id", evaluation_id).execute()
 
-    # Inserir novo
+    # insert new
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
@@ -222,33 +235,34 @@ def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, stre
     if rows:
         supabase.table("eval_notes").insert(rows).execute()
 
+
 def get_latest_evaluation(player_id):
     if not supabase:
         return None
-    # Busca todas as avaliações do jogador e seleciona a mais recente em Python
+    # fetch evaluations for player and pick latest (same logic as original)
     resp = supabase.table("evaluations").select("*").eq("player_id", player_id).execute()
     evs = resp.data or []
     if not evs:
         return None
-    # ordenar por eval_date, depois id (desc) - same logic as original
     evs_sorted = sorted(evs, key=lambda x: (x.get("eval_date") or "", x.get("id") or 0), reverse=True)
     ev = evs_sorted[0]
     eid = ev["id"]
 
-    # buscar skills, mog, notes
+    # fetch skills
     skills = {}
     resp = supabase.table("eval_skills").select("category,skill_name,level").eq("evaluation_id", eid).execute()
     for r in (resp.data or []):
         skills.setdefault(r["category"], {})[r["skill_name"]] = r["level"]
 
+    # fetch mog
     mog = {}
     resp = supabase.table("eval_mog").select("category,value").eq("evaluation_id", eid).execute()
     for r in (resp.data or []):
         mog[r["category"]] = r["value"]
 
+    # fetch notes and sort client-side
     strengths = []
     improvements = []
-    # fetch notes and sort client-side (avoids client .order compatibility issues)
     resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).execute()
     notes = resp.data or []
     try:
