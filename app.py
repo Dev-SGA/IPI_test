@@ -86,86 +86,100 @@ def logout_admin():
 
 
 # ---------------------------
-# Database helpers (Supabase)
+# Database helpers (Supabase) - respostas tratadas com segurança
 # ---------------------------
-# Load credentials (env vars take precedence, then Streamlit secrets)
-SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None)
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
+def _resp_error(resp):
+    """Extrai mensagem de erro de forma robusta de um objeto de resposta Supabase/APIResponse."""
+    if resp is None:
+        return "No response from Supabase"
+    # 1) atributo .error (quando disponível)
+    if hasattr(resp, "error") and resp.error:
+        return resp.error
+    # 2) se for mapeável (dict-like), tente resp.get("error")
+    try:
+        if isinstance(resp, dict) and resp.get("error"):
+            return resp.get("error")
+        # some APIResponse implement .get
+        err = getattr(resp, "get", lambda k, d=None: d)("error", None)
+        if err:
+            return err
+    except Exception:
+        pass
+    # 3) status code não-2xx => informe status e data
+    code = getattr(resp, "status_code", None)
+    if code is not None and not (200 <= int(code) < 300):
+        data = getattr(resp, "data", None)
+        return f"status={code}, data={data}"
+    # 4) fallback: retornou nada de útil
+    return None
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.warning("Supabase não está configurado. Algumas funcionalidades de persistência podem não funcionar. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
-    supabase = None
-else:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-def init_db():
-    # Schema should be created in Supabase SQL Editor (see instructions).
-    return
-
-init_db()
-
+def _resp_data(resp):
+    """Retorna resp.data de forma segura (ou None)."""
+    try:
+        return getattr(resp, "data", None)
+    except Exception:
+        try:
+            return resp.get("data")
+        except Exception:
+            return None
 
 def get_players():
-    """
-    Retrieve players from Supabase. Sort client-side to avoid depending on .order()
-    variations across client versions.
-    Returns a DataFrame with columns: id, name, position, club, photo_url
-    """
     if not supabase:
         return pd.DataFrame(columns=["id", "name", "position", "club", "photo_url"])
     resp = supabase.table("players").select("*").execute()
-    data = resp.data or []
+    err = _resp_error(resp)
+    if err:
+        # Log/alert opcional — por enquanto devolvemos DF vazio para não quebrar UI
+        st.warning(f"Warning fetching players: {err}")
+        return pd.DataFrame(columns=["id", "name", "position", "club", "photo_url"])
+    data = _resp_data(resp) or []
     df = pd.DataFrame(data)
-    if not df.empty:
-        # ensure consistent ordering and index
-        if "name" in df.columns:
-            df = df.sort_values("name").reset_index(drop=True)
-        else:
-            df = df.reset_index(drop=True)
+    if not df.empty and "name" in df.columns:
+        df = df.sort_values("name").reset_index(drop=True)
     return df
-
 
 def add_player(name, position, club, photo_url):
     if not supabase:
         raise Exception("Supabase não configurado.")
     payload = {"name": name, "position": position, "club": club, "photo_url": photo_url}
     resp = supabase.table("players").insert(payload).execute()
-    if resp.error:
-        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
-    return resp
-
+    err = _resp_error(resp)
+    if err:
+        # convert to string message e lançar
+        raise Exception(err if isinstance(err, str) else str(err))
+    return _resp_data(resp)
 
 def delete_player(player_id: int):
-    """
-    With FK = ON DELETE CASCADE in DB, deleting the player is sufficient.
-    """
     if not supabase:
         raise Exception("Supabase não configurado.")
     resp = supabase.table("players").delete().eq("id", player_id).execute()
-    if resp.error:
-        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
-    return resp
-
+    err = _resp_error(resp)
+    if err:
+        raise Exception(err if isinstance(err, str) else str(err))
+    return _resp_data(resp)
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
     if not supabase:
         raise Exception("Supabase não configurado.")
     payload = {"name": name.strip(), "position": position.strip(), "club": club.strip(), "photo_url": photo_url.strip()}
     resp = supabase.table("players").update(payload).eq("id", player_id).execute()
-    if resp.error:
-        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
-    return resp
-
+    err = _resp_error(resp)
+    if err:
+        raise Exception(err if isinstance(err, str) else str(err))
+    return _resp_data(resp)
 
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     if not supabase:
         raise Exception("Supabase não configurado.")
     ev = {"player_id": player_id, "analyst": analyst, "eval_date": eval_date}
     resp = supabase.table("evaluations").insert(ev).execute()
-    if resp.error or not resp.data:
-        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else (resp.error or "Falha ao criar avaliação"))
-    eid = resp.data[0]["id"]
+    err = _resp_error(resp)
+    if err:
+        raise Exception(err if isinstance(err, str) else str(err))
+    edata = _resp_data(resp) or []
+    if not edata:
+        raise Exception("Falha ao criar avaliação (resposta vazia)")
+    eid = edata[0]["id"]
 
     # eval_skills
     rows = []
@@ -174,14 +188,20 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
             if str(sn).strip() and str(lv).strip():
                 rows.append({"evaluation_id": eid, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
     if rows:
-        supabase.table("eval_skills").insert(rows).execute()
+        r = supabase.table("eval_skills").insert(rows).execute()
+        e = _resp_error(r)
+        if e:
+            raise Exception(e)
 
     # eval_mog
     rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
     if rows:
-        supabase.table("eval_mog").insert(rows).execute()
+        r = supabase.table("eval_mog").insert(rows).execute()
+        e = _resp_error(r)
+        if e:
+            raise Exception(e)
 
-    # eval_notes (strengths / improvements)
+    # eval_notes
     rows = []
     for i, t in enumerate(strengths or []):
         if str(t).strip():
@@ -190,116 +210,50 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
         if str(t).strip():
             rows.append({"evaluation_id": eid, "note_type": "improve", "position": i + 1, "text": t.strip()})
     if rows:
-        supabase.table("eval_notes").insert(rows).execute()
+        r = supabase.table("eval_notes").insert(rows).execute()
+        e = _resp_error(r)
+        if e:
+            raise Exception(e)
 
     return eid
-
 
 def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
     if not supabase:
         raise Exception("Supabase não configurado.")
     resp = supabase.table("evaluations").update({"analyst": analyst, "eval_date": eval_date}).eq("id", evaluation_id).execute()
-    if resp.error:
-        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
-    return resp
-
+    err = _resp_error(resp)
+    if err:
+        raise Exception(err if isinstance(err, str) else str(err))
+    return _resp_data(resp)
 
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
     if not supabase:
         raise Exception("Supabase não configurado.")
     # delete old
-    supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
-    supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
-    supabase.table("eval_notes").delete().eq("evaluation_id", evaluation_id).execute()
+    r = supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
+    e = _resp_error(r)
+    if e:
+        raise Exception(e)
+    r = supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
+    e = _resp_error(r)
+    if e:
+        raise Exception(e)
+    r = supabase.table("eval_notes").delete().eq("evaluation_id", evaluation_id).execute()
+    e = _resp_error(r)
+    if e:
+        raise Exception(e)
 
-    # insert new
+    # insert new (same as in save_evaluation)
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
             if str(sn).strip() and str(lv).strip():
                 rows.append({"evaluation_id": evaluation_id, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
     if rows:
-        supabase.table("eval_skills").insert(rows).execute()
-
-    rows = [{"evaluation_id": evaluation_id, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
-    if rows:
-        supabase.table("eval_mog").insert(rows).execute()
-
-    rows = []
-    for i, t in enumerate(strengths or []):
-        if str(t).strip():
-            rows.append({"evaluation_id": evaluation_id, "note_type": "strength", "position": i + 1, "text": t.strip()})
-    for i, t in enumerate(improvements or []):
-        if str(t).strip():
-            rows.append({"evaluation_id": evaluation_id, "note_type": "improve", "position": i + 1, "text": t.strip()})
-    if rows:
-        supabase.table("eval_notes").insert(rows).execute()
-
-
-def get_latest_evaluation(player_id):
-    if not supabase:
-        return None
-    # fetch evaluations for player and pick latest (same logic as original)
-    resp = supabase.table("evaluations").select("*").eq("player_id", player_id).execute()
-    evs = resp.data or []
-    if not evs:
-        return None
-    evs_sorted = sorted(evs, key=lambda x: (x.get("eval_date") or "", x.get("id") or 0), reverse=True)
-    ev = evs_sorted[0]
-    eid = ev["id"]
-
-    # fetch skills
-    skills = {}
-    resp = supabase.table("eval_skills").select("category,skill_name,level").eq("evaluation_id", eid).execute()
-    for r in (resp.data or []):
-        skills.setdefault(r["category"], {})[r["skill_name"]] = r["level"]
-
-    # fetch mog
-    mog = {}
-    resp = supabase.table("eval_mog").select("category,value").eq("evaluation_id", eid).execute()
-    for r in (resp.data or []):
-        mog[r["category"]] = r["value"]
-
-    # fetch notes and sort client-side
-    strengths = []
-    improvements = []
-    resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).execute()
-    notes = resp.data or []
-    try:
-        notes_sorted = sorted(notes, key=lambda r: int(r.get("position") or 0))
-    except Exception:
-        notes_sorted = sorted(notes, key=lambda r: (r.get("position") or 0))
-    for r in notes_sorted:
-        if r.get("note_type") == "strength":
-            strengths.append(r.get("text"))
-        else:
-            improvements.append(r.get("text"))
-
-    return {"id": eid, "analyst": ev.get("analyst"), "eval_date": str(ev.get("eval_date")), "skills": skills, "mog": mog,
-            "strengths": strengths, "improvements": improvements}
-
-
-# ---------------------------
-# UI: Sidebar Admin area
-# ---------------------------
-with st.sidebar.expander("Admin"):
-    if is_admin():
-        st.success("🔐 Autenticado como admin")
-        if st.button("Logout", use_container_width=True):
-            logout_admin()
-            # use safe rerun (try/except inside helper)
-            trigger_rerun()
-    else:
-        pwd = st.text_input("Senha de administrador", type="password")
-        if st.button("Entrar", use_container_width=True):
-            # IMPORTANT: do not call trigger_rerun() here — the button click
-            # already causes a rerun; calling the helper can race on some systems.
-            if try_login(pwd):
-                st.success("Autenticado com sucesso.")
-            else:
-                st.error("Senha incorreta.")
-
-
+        r = supabase.table("eval_skills").insert(rows).execute()
+        e = _resp_error(r)
+        if
+
 # ---------------------------
 # UI: Sidebar navigation
 # ---------------------------
