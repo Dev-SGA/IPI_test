@@ -1,4 +1,4 @@
-# app.py (v16) - Supabase integration + fixes (notes sorting done client-side)
+# app.py (v17) - estética v14 restaurada + Supabase como backend persistente
 import os
 import time
 import streamlit as st
@@ -58,6 +58,8 @@ LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 # Helper: trigger safe rerun (avoid st.experimental_rerun() in nested contexts)
 # ---------------------------
 def trigger_rerun():
+    # Try to force a rerun by changing the query params. If that fails (race),
+    # fall back to setting a session_state token so no exception bubbles up.
     try:
         st.experimental_set_query_params(_refresh=int(time.time()))
     except Exception:
@@ -86,6 +88,7 @@ def logout_admin():
 # ---------------------------
 # Database helpers (Supabase)
 # ---------------------------
+# Load credentials (env vars take precedence, then Streamlit secrets)
 SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None)
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
 
@@ -96,18 +99,20 @@ else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
+    # Schema should be created in Supabase SQL Editor (see instructions).
     return
 
 init_db()
 
 def get_players():
     if not supabase:
+        # return empty DF with expected columns
         return pd.DataFrame(columns=["id", "name", "position", "club", "photo_url"])
-    resp = supabase.table("players").select("*").execute()
+    resp = supabase.table("players").select("*").order("name", ascending=True).execute()
     data = resp.data or []
     df = pd.DataFrame(data)
     if not df.empty:
-        df = df.sort_values("name").reset_index(drop=True)
+        df = df.reset_index(drop=True)
     return df
 
 def add_player(name, position, club, photo_url):
@@ -116,10 +121,15 @@ def add_player(name, position, club, photo_url):
     payload = {"name": name, "position": position, "club": club, "photo_url": photo_url}
     resp = supabase.table("players").insert(payload).execute()
     if resp.error:
+        # raise the error message for UI to handle
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
 
 def delete_player(player_id: int):
+    """
+    With FK = ON DELETE CASCADE in DB, deleting the player is sufficient.
+    If that isn't available for some reason, Supabase will return an error.
+    """
     if not supabase:
         raise Exception("Supabase não configurado.")
     resp = supabase.table("players").delete().eq("id", player_id).execute()
@@ -139,12 +149,14 @@ def update_player(player_id: int, name: str, position: str, club: str, photo_url
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
     if not supabase:
         raise Exception("Supabase não configurado.")
+    # Inserir evaluation e depois os items relacionados
     ev = {"player_id": player_id, "analyst": analyst, "eval_date": eval_date}
     resp = supabase.table("evaluations").insert(ev).execute()
     if resp.error or not resp.data:
         raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else (resp.error or "Falha ao criar avaliação"))
     eid = resp.data[0]["id"]
 
+    # eval_skills
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
@@ -153,10 +165,12 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
     if rows:
         supabase.table("eval_skills").insert(rows).execute()
 
+    # eval_mog
     rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
     if rows:
         supabase.table("eval_mog").insert(rows).execute()
 
+    # eval_notes (strengths / improvements)
     rows = []
     for i, t in enumerate(strengths or []):
         if str(t).strip():
@@ -180,10 +194,12 @@ def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
     if not supabase:
         raise Exception("Supabase não configurado.")
+    # Apaga conteúdo antigo e insere o novo
     supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
     supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
     supabase.table("eval_notes").delete().eq("evaluation_id", evaluation_id).execute()
 
+    # Inserir novo
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
@@ -209,14 +225,17 @@ def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, stre
 def get_latest_evaluation(player_id):
     if not supabase:
         return None
+    # Busca todas as avaliações do jogador e seleciona a mais recente em Python
     resp = supabase.table("evaluations").select("*").eq("player_id", player_id).execute()
     evs = resp.data or []
     if not evs:
         return None
+    # ordenar por eval_date, depois id (desc) - same logic as original
     evs_sorted = sorted(evs, key=lambda x: (x.get("eval_date") or "", x.get("id") or 0), reverse=True)
     ev = evs_sorted[0]
     eid = ev["id"]
 
+    # buscar skills, mog, notes
     skills = {}
     resp = supabase.table("eval_skills").select("category,skill_name,level").eq("evaluation_id", eid).execute()
     for r in (resp.data or []):
@@ -229,15 +248,13 @@ def get_latest_evaluation(player_id):
 
     strengths = []
     improvements = []
-    # Fetch notes and sort client-side to avoid client .order incompatibilities
+    # fetch notes and sort client-side (avoids client .order compatibility issues)
     resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).execute()
     notes = resp.data or []
     try:
         notes_sorted = sorted(notes, key=lambda r: int(r.get("position") or 0))
     except Exception:
-        # Fallback: sort by whatever stable key if position can't be cast
         notes_sorted = sorted(notes, key=lambda r: (r.get("position") or 0))
-
     for r in notes_sorted:
         if r.get("note_type") == "strength":
             strengths.append(r.get("text"))
@@ -256,10 +273,13 @@ with st.sidebar.expander("Admin"):
         st.success("🔐 Autenticado como admin")
         if st.button("Logout", use_container_width=True):
             logout_admin()
+            # use safe rerun (try/except inside helper)
             trigger_rerun()
     else:
         pwd = st.text_input("Senha de administrador", type="password")
         if st.button("Entrar", use_container_width=True):
+            # IMPORTANT: do not call trigger_rerun() here — the button click
+            # already causes a rerun; calling the helper can race on some systems.
             if try_login(pwd):
                 st.success("Autenticado com sucesso.")
             else:
@@ -299,8 +319,12 @@ if page == "➕ Cadastrar Jogador":
                     add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
                     st.success(f"✅ Jogador **{name}** cadastrado!")
                     trigger_rerun()
-                except Exception:
-                    st.error("Já existe um jogador com esse nome. Escolha outro nome.")
+                except Exception as e:
+                    msg = str(e).lower()
+                    if "unique" in msg or "duplicate" in msg or "already exists" in msg:
+                        st.error("Já existe um jogador com esse nome. Escolha outro nome.")
+                    else:
+                        st.error(f"Erro ao cadastrar jogador: {e}")
 
 
 # ---------------------------
@@ -322,6 +346,7 @@ elif page == "📝 Nova Avaliação":
             eval_date = st.date_input("Data", value=date.today())
         st.divider()
 
+        # Technical
         st.subheader("🎯 Technical")
         tc = st.columns(4)
         tv = {}
@@ -331,6 +356,7 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
+        # Player-specific (customizable)
         st.subheader("⚡ Player-Specific Indicators")
         st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
         ps = {}
@@ -346,6 +372,7 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
+        # Mental
         st.subheader("🧠 Mental")
         mc = st.columns(4)
         mv = {}
@@ -355,6 +382,7 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
+        # MoG
         st.subheader("📐 Moments of the Game (MoG)")
         mgc = st.columns(5)
         mgv = {}
@@ -364,6 +392,7 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
+        # Strengths / Improve
         col_s, col_i = st.columns(2)
         with col_s:
             st.subheader("💪 My Strengths")
@@ -400,7 +429,7 @@ elif page == "📝 Nova Avaliação":
 
 
 # ---------------------------
-# Page: Jogadores (lista / ações)
+# Page: Jogadores (lista / ações) - Edit card aligned left and protected
 # ---------------------------
 elif page == "📚 Jogadores":
     st.header("Lista de Atletas Cadastrados")
@@ -423,9 +452,11 @@ elif page == "📚 Jogadores":
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
         evaluation = get_latest_evaluation(int(sel_row["id"]))
 
+        # LEFT: Edit card + actions (aligned with "Ações")
         left_col, right_col = st.columns([1, 2], gap="large")
 
         with left_col:
+            # If not admin, show a small notice and quick password input to allow login in place
             if not is_admin():
                 st.warning("Para editar/excluir jogadores você precisa estar autenticado como admin.")
                 quick_pwd = st.text_input("Senha de admin (rápido)", type="password", key="quick_admin_pwd")
@@ -434,6 +465,7 @@ elif page == "📚 Jogadores":
                         st.success("Autenticado como admin.")
                     else:
                         st.error("Senha incorreta.")
+                # show basic info but hide edit card
                 st.markdown(f"**Nome:** {sel_row['name']}")
                 st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
                 if sel_row["photo_url"]:
@@ -446,15 +478,18 @@ elif page == "📚 Jogadores":
                         unsafe_allow_html=True,
                     )
             else:
+                # admin: show full edit card (edita TODOS os atributos, inclusive avaliação)
                 st.markdown('<div class="block-container card" style="padding:12px">', unsafe_allow_html=True)
                 st.markdown('### ✏️ Editar jogador')
 
                 with st.form(f"form_edit_{sel_row['id']}"):
+                    # Player basic info
                     new_name = st.text_input("Nome completo *", value=sel_row["name"])
                     new_position = st.text_input("Posição", value=sel_row["position"] or "")
                     new_club = st.text_input("Clube", value=sel_row["club"] or "")
                     new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
 
+                    # Preview da foto (fixa, ajustada com contain)
                     if new_photo.strip():
                         st.markdown(
                             f'''
@@ -468,6 +503,7 @@ elif page == "📚 Jogadores":
                     st.divider()
                     st.markdown("**Avaliação (editar última ou criar nova)**")
 
+                    # Analyst and date (prefill if evaluation exists)
                     if evaluation:
                         analyst_val = evaluation.get("analyst", "")
                         try:
@@ -550,12 +586,15 @@ elif page == "📚 Jogadores":
                     save_clicked = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
 
                     if save_clicked:
+                        # Validation
                         if not new_name.strip():
                             st.error("Nome é obrigatório.")
                         else:
                             try:
+                                # Update player data
                                 update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
 
+                                # Build payloads
                                 technical_payload = {s: (tech_vals[s] or "").strip() for s in TECHNICAL_SKILLS}
                                 mental_payload = {s: (mental_vals[s] or "").strip() for s in MENTAL_SKILLS}
                                 ps_payload = {}
@@ -572,12 +611,16 @@ elif page == "📚 Jogadores":
                                 strengths_payload = [s1, s2, s3]
                                 improvements_payload = [i1, i2, i3]
 
+                                # If evaluation exists -> update meta + replace content
                                 if evaluation:
                                     eval_id = evaluation["id"]
+                                    # update meta
                                     update_evaluation_meta(eval_id, analyst_input.strip() or evaluation.get("analyst", ""), eval_date_input.isoformat())
+                                    # replace content
                                     replace_evaluation_content(eval_id, skills_payload, mog_payload, strengths_payload, improvements_payload)
                                     st.success(f"✅ Jogador e avaliação atualizados com sucesso!")
                                 else:
+                                    # Create new evaluation (analyst required)
                                     if not analyst_input.strip():
                                         st.error("Analista é necessário ao criar nova avaliação.")
                                     else:
@@ -592,11 +635,18 @@ elif page == "📚 Jogadores":
                                             improvements=improvements_payload,
                                         )
                                         st.success("✅ Jogador atualizado e nova avaliação criada!")
+                                # safe rerun after successful save/delete
                                 trigger_rerun()
-                            except Exception:
-                                st.error("Já existe um jogador com esse nome. Escolha outro nome.")
+                            except Exception as e:
+                                msg = str(e).lower()
+                                if "unique" in msg or "duplicate" in msg or "already exists" in msg:
+                                    st.error("Já existe um jogador com esse nome. Escolha outro nome.")
+                                else:
+                                    st.error(f"Erro ao salvar jogador/avaliação: {e}")
                 st.markdown("</div>", unsafe_allow_html=True)
 
+                # Delete action (protected)
+                st.markdown("")  # spacer
                 confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
                 if confirm:
                     if st.button("Confirmar exclusão"):
@@ -604,9 +654,10 @@ elif page == "📚 Jogadores":
                             delete_player(int(sel_row["id"]))
                             st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                             trigger_rerun()
-                        except Exception:
-                            st.error("Erro ao apagar jogador: existem registros dependentes ou problema de permissão. Entre em contato com o administrador.")
+                        except Exception as e:
+                            st.error(f"Erro ao apagar jogador: {e}")
 
+        # RIGHT: Details / Radar / Meta (visual)
         with right_col:
             st.markdown(f"**Nome:** {sel_row['name']}")
             st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
@@ -621,6 +672,7 @@ elif page == "📚 Jogadores":
                 )
 
             if evaluation and evaluation.get("mog"):
+                # reduced spacer (was larger); less gap between title and chart
                 st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
                 def build_radar(mog_data):
@@ -653,11 +705,12 @@ elif page == "📚 Jogadores":
                         paper_bgcolor="rgba(0,0,0,0)",
                         plot_bgcolor="rgba(0,0,0,0)",
                         showlegend=False,
-                        margin=dict(l=40, r=40, t=48, b=40),
-                        height=420,
+                        margin=dict(l=40, r=40, t=48, b=40),  # increased top margin to avoid label clipping
+                        height=420,  # slightly taller to give room for labels
                     )
                     return fig
 
+                # title + chart with tighter spacing and safer margins to avoid label clipping
                 st.markdown('<div class="block-container radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
                 fig = build_radar(evaluation["mog"])
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -679,23 +732,228 @@ else:
         "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},
     }
 
+    # Load Google fonts
     st.markdown(
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
+    # CSS template scoped to .block-container to avoid affecting sidebar elements
     _css_template = """
     <style>
     .block-container, .block-container * {
         font-family: __FG__ !important;
     }
-    /* (CSS truncated here for brevity in chat - full CSS kept in actual file) */
+    .block-container .header-bar {
+        background: linear-gradient(135deg, #67b6fb 0%, #5aaaf5 50%, #4d9eef 100%);
+        padding: 28px 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 20px rgba(103,182,251,0.30);
+        position: relative;
+        overflow: hidden;
+    }
+    .block-container .header-bar::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        pointer-events: none;
+    }
+    .block-container .header-bar .header-logo {
+        height: 96px;
+        width: auto;
+        object-fit: contain;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+    }
+    .block-container .header-bar .header-sep {
+        width: 2px;
+        height: 72px;
+        background: rgba(10,42,74,0.2);
+        border-radius: 1px;
+        flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+    }
+    .block-container .header-bar h1 {
+        font-family: __FD__ !important;
+        color: #0a2a4a;
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 900;
+        letter-spacing: 2.5px;
+        text-transform: uppercase;
+        position: relative;
+        z-index: 1;
+        line-height: 1.2;
+    }
+
+    .block-container .card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 12px rgba(13,71,161,0.12);
+    }
+    .block-container .player-card { text-align: center; }
+    .block-container .player-card .divider {
+        width: 50px; height: 3px;
+        background: #67b6fb;
+        border-radius: 2px;
+        margin: 10px auto;
+    }
+    .block-container .player-card .label {
+        font-family: __FG__ !important;
+        font-size: 0.72rem;
+        color: #78909C;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+    }
+    .block-container .player-card .value {
+        font-family: __FG__ !important;
+        font-size: 1.05rem;
+        color: #0D47A1;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .block-container .section {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+        margin-bottom: 16px;
+    }
+    .block-container .section-header {
+        background: #0D47A1;
+        color: white;
+        padding: 10px 20px;
+        font-family: __FD__ !important;
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+    .block-container .section-body {
+        background: #1E88E5;
+        padding: 14px 20px;
+    }
+
+    .block-container .radar-outer {
+        background: #0C1F3A;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
+        overflow: hidden;
+        margin-bottom: 8px; /* reduced bottom spacing */
+    }
+    /* reduced padding to bring chart closer to title */
+    .block-container .radar-title {
+        background: #0C1F3A;
+        color: white;
+        text-align: center;
+        font-family: __FD__ !important;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 8px 12px 6px 12px; /* smaller top & bottom padding */
+        margin-bottom: 0;
+    }
+    .block-container .radar-body { background: #0C1F3A; padding: 0 8px 12px 8px; } /* small bottom padding */
+    .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
+
+    .block-container .badge-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .block-container .badge-table td {
+        padding: 8px 8px;
+        vertical-align: middle;
+    }
+    .block-container .badge-table .cell-label {
+        color: white;
+        font-family: __FG__ !important;
+        font-size: 0.92rem;
+        font-weight: 600;
+        text-align: right;
+        padding-right: 14px;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .block-container .badge-table .cell-tag {
+        text-align: left;
+        white-space: nowrap;
+    }
+    .block-container .badge-tag {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-family: __FG__ !important;
+        font-size: 0.82rem;
+        font-weight: 700;
+        white-space: nowrap;
+        min-width: 90px;
+        text-align: center;
+        box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
+    }
+
+    .block-container .text-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .block-container .text-list li {
+        color: white;
+        font-family: __FDO__ !important;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 5px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
+    .block-container .text-list li:last-child { border-bottom: none; }
+    .block-container .text-list .num {
+        display: inline-block;
+        width: 24px; height: 24px;
+        line-height: 24px;
+        text-align: center;
+        background: rgba(255,255,255,0.2);
+        border-radius: 50%;
+        font-size: 0.8rem;
+        margin-right: 8px;
+    }
+
+    .block-container .no-data-msg {
+        text-align: center;
+        padding: 40px 20px;
+        color: #78909C;
+        font-size: 1.1rem;
+    }
+    .block-container .eval-meta {
+        background: rgba(13,71,161,0.06);
+        border-radius: 8px;
+        padding: 8px 16px;
+        margin-top: 8px;
+        font-family: __FDO__ !important;
+        font-size: 0.85rem;
+        color: #546E7A;
+    }
+    .block-container div[data-testid="stSelectbox"] label {
+        font-weight: 600;
+        color: #0D47A1;
+        font-family: __FG__ !important;
+    }
     </style>
     """
 
     _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
     st.markdown(_css, unsafe_allow_html=True)
 
+    # Helpers reused in dashboard
     def badge_tag(level):
         if not level:
             return ""
@@ -706,16 +964,20 @@ else:
         return f'<div class="section"><div class="section-header">{title}</div><div class="section-body">{body}</div></div>'
 
     def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
+        # pad to multiple of cols
         if len(items) % cols != 0:
             remaining = cols - (len(items) % cols)
             items = items + [("", "")] * remaining
+
         total_tag_px = tag_px * cols
         label_col_calc = f"calc((100% - {total_tag_px}px) / {cols})"
+
         colgroup_html = "<colgroup>"
         for _ in range(cols):
             colgroup_html += f'<col class="label-col" style="width:{label_col_calc}">'
             colgroup_html += f'<col class="tag-col" style="width:{tag_px}px">'
         colgroup_html += "</colgroup>"
+
         rows_html = ""
         for row_start in range(0, len(items), cols):
             row_items = items[row_start: row_start + cols]
@@ -730,6 +992,7 @@ else:
                 else:
                     cells += "<td></td><td></td>"
             rows_html += f"<tr>{cells}</tr>"
+
         table_html = f'<table class="badge-table">{colgroup_html}{rows_html}</table>'
         return table_html
 
@@ -776,6 +1039,7 @@ else:
         )
         return fig
 
+    # Header (use f-string to avoid messy concatenation)
     st.markdown(f'''
         <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
@@ -838,15 +1102,18 @@ else:
 
         sk = evaluation["skills"]
 
+        # Technical
         tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
         st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
+        # Player-specific (preserve input order, padded to 4)
         ps_data = sk.get("player_specific", {})
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) < 4:
             ps_items.append(("", ""))
         st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
 
+        # Mental (fixed order, padded)
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
         while len(m_items) < 4:
             m_items.append(("", ""))
