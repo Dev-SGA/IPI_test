@@ -1,17 +1,17 @@
-# app.py (v14) - corrige IntegrityError ao deletar jogador (remoção manual de dependências)
+# app.py (v15) - Supabase integration + fixes
 import os
 import time
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
-import sqlite3
 import base64
 from pathlib import Path
 from datetime import date, datetime
 
-st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
+# Supabase client
+from supabase import create_client, Client
 
-DB_PATH = "sga_evaluations.db"
+st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
 # Admin password read from environment (fallback default)
 ADMIN_PASSWORD = os.getenv("SGA_ADMIN_PASSWORD", "changeme")
@@ -86,25 +86,33 @@ def logout_admin():
 
 
 # ---------------------------
-# Database helpers
+# Database helpers (Supabase)
 # ---------------------------
-from supabase import create_client, Client
-
-# Carrega credenciais (procura em env vars ou em st.secrets)
+# Load credentials (env vars take precedence, then Streamlit secrets)
 SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None)
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase não configurado. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
-    st.stop()
+    # We don't stop the whole file early here because some pages may be viewed locally for design.
+    # However, DB ops will stop the page when executed where necessary.
+    st.warning("Supabase não está configurado. Algumas funcionalidades de persistência podem não funcionar. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
+    supabase = None
+else:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    # As tabelas devem ser criadas no SQL Editor do Supabase (veja instruções). Nada a fazer em runtime.
+    # As tabelas devem ser criadas no SQL Editor do Supabase (veja instruções).
+    # Mantemos a função por compatibilidade com o fluxo anterior.
     return
 
+
+init_db()
+
+
 def get_players():
+    if not supabase:
+        return pd.DataFrame(columns=["id", "name", "position", "club", "photo_url"])
     resp = supabase.table("players").select("*").execute()
     data = resp.data or []
     df = pd.DataFrame(data)
@@ -112,39 +120,53 @@ def get_players():
         df = df.sort_values("name").reset_index(drop=True)
     return df
 
+
 def add_player(name, position, club, photo_url):
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     payload = {"name": name, "position": position, "club": club, "photo_url": photo_url}
     resp = supabase.table("players").insert(payload).execute()
-    # resp.data pode conter o registro inserido
+    if resp.error:
+        # Bubble up a clear message
+        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
+
 
 def delete_player(player_id: int):
     """
     Com as FKs ON DELETE CASCADE no banco, basta apagar o player.
     """
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     resp = supabase.table("players").delete().eq("id", player_id).execute()
-    # Verifique resp.status_code ou resp.error se quiser lidar com erros
+    if resp.error:
+        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
+
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     payload = {"name": name.strip(), "position": position.strip(), "club": club.strip(), "photo_url": photo_url.strip()}
     resp = supabase.table("players").update(payload).eq("id", player_id).execute()
-    # Se ocorrer unique constraint, supabase retornará erro — capture se desejar
     if resp.error:
-        raise Exception(resp.error)
+        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
 
+
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     # Inserir evaluation e depois os items relacionados
     ev = {"player_id": player_id, "analyst": analyst, "eval_date": eval_date}
     resp = supabase.table("evaluations").insert(ev).execute()
-    if not resp.data:
-        raise Exception("Falha ao criar avaliação")
+    if resp.error or not resp.data:
+        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else (resp.error or "Falha ao criar avaliação"))
     eid = resp.data[0]["id"]
 
     # eval_skills
     rows = []
-    for cat, sd in skills.items():
+    for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
             if str(sn).strip() and str(lv).strip():
                 rows.append({"evaluation_id": eid, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
@@ -152,16 +174,16 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
         supabase.table("eval_skills").insert(rows).execute()
 
     # eval_mog
-    rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in mog.items()]
+    rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
     if rows:
         supabase.table("eval_mog").insert(rows).execute()
 
     # eval_notes (strengths / improvements)
     rows = []
-    for i, t in enumerate(strengths):
+    for i, t in enumerate(strengths or []):
         if str(t).strip():
             rows.append({"evaluation_id": eid, "note_type": "strength", "position": i + 1, "text": t.strip()})
-    for i, t in enumerate(improvements):
+    for i, t in enumerate(improvements or []):
         if str(t).strip():
             rows.append({"evaluation_id": eid, "note_type": "improve", "position": i + 1, "text": t.strip()})
     if rows:
@@ -169,13 +191,19 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
 
     return eid
 
+
 def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     resp = supabase.table("evaluations").update({"analyst": analyst, "eval_date": eval_date}).eq("id", evaluation_id).execute()
     if resp.error:
-        raise Exception(resp.error)
+        raise Exception(resp.error.get("message") if isinstance(resp.error, dict) else resp.error)
     return resp
 
+
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
+    if not supabase:
+        raise Exception("Supabase não configurado.")
     # Apaga conteúdo antigo e insere o novo
     supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
     supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
@@ -183,28 +211,31 @@ def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, stre
 
     # Inserir novo
     rows = []
-    for cat, sd in skills.items():
+    for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
             if str(sn).strip() and str(lv).strip():
                 rows.append({"evaluation_id": evaluation_id, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
     if rows:
         supabase.table("eval_skills").insert(rows).execute()
 
-    rows = [{"evaluation_id": evaluation_id, "category": c, "value": int(v)} for c, v in mog.items()]
+    rows = [{"evaluation_id": evaluation_id, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
     if rows:
         supabase.table("eval_mog").insert(rows).execute()
 
     rows = []
-    for i, t in enumerate(strengths):
+    for i, t in enumerate(strengths or []):
         if str(t).strip():
             rows.append({"evaluation_id": evaluation_id, "note_type": "strength", "position": i + 1, "text": t.strip()})
-    for i, t in enumerate(improvements):
+    for i, t in enumerate(improvements or []):
         if str(t).strip():
             rows.append({"evaluation_id": evaluation_id, "note_type": "improve", "position": i + 1, "text": t.strip()})
     if rows:
         supabase.table("eval_notes").insert(rows).execute()
 
+
 def get_latest_evaluation(player_id):
+    if not supabase:
+        return None
     # Busca todas as avaliações do jogador e seleciona a mais recente em Python
     resp = supabase.table("evaluations").select("*").eq("player_id", player_id).execute()
     evs = resp.data or []
@@ -228,7 +259,8 @@ def get_latest_evaluation(player_id):
 
     strengths = []
     improvements = []
-    resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).order("position", {"ascending": True}).execute()
+    # CORREÇÃO: passar ascending=True em vez de um dict
+    resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).order("position", ascending=True).execute()
     for r in (resp.data or []):
         if r["note_type"] == "strength":
             strengths.append(r["text"])
@@ -237,6 +269,8 @@ def get_latest_evaluation(player_id):
 
     return {"id": eid, "analyst": ev.get("analyst"), "eval_date": str(ev.get("eval_date")), "skills": skills, "mog": mog,
             "strengths": strengths, "improvements": improvements}
+
+
 # ---------------------------
 # UI: Sidebar Admin area
 # ---------------------------
@@ -287,9 +321,13 @@ if page == "➕ Cadastrar Jogador":
             if not name.strip():
                 st.error("Nome é obrigatório.")
             else:
-                add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
-                st.success(f"✅ Jogador **{name}** cadastrado!")
-                trigger_rerun()
+                try:
+                    add_player(name.strip(), position.strip(), club.strip(), photo_url.strip())
+                    st.success(f"✅ Jogador **{name}** cadastrado!")
+                    trigger_rerun()
+                except Exception as e:
+                    # Detect common unique constraint message or fallback
+                    st.error("Já existe um jogador com esse nome. Escolha outro nome.")
 
 
 # ---------------------------
@@ -377,17 +415,20 @@ elif page == "📝 Nova Avaliação":
                 st.error("Nome do analista é obrigatório.")
             else:
                 player_id = int(players_df.loc[players_df["name"] == player_name, "id"].iloc[0])
-                save_evaluation(
-                    player_id=player_id,
-                    analyst=analyst.strip(),
-                    eval_date=eval_date.isoformat(),
-                    skills={"technical": tv, "player_specific": ps, "mental": mv},
-                    mog=mgv,
-                    strengths=[s1, s2, s3],
-                    improvements=[i1, i2, i3],
-                )
-                st.success(f"✅ Avaliação de **{player_name}** salva!")
-                st.balloons()
+                try:
+                    save_evaluation(
+                        player_id=player_id,
+                        analyst=analyst.strip(),
+                        eval_date=eval_date.isoformat(),
+                        skills={"technical": tv, "player_specific": ps, "mental": mv},
+                        mog=mgv,
+                        strengths=[s1, s2, s3],
+                        improvements=[i1, i2, i3],
+                    )
+                    st.success(f"✅ Avaliação de **{player_name}** salva!")
+                    st.balloons()
+                except Exception as e:
+                    st.error(f"Erro ao salvar avaliação: {e}")
 
 
 # ---------------------------
@@ -599,7 +640,7 @@ elif page == "📚 Jogadores":
                                         st.success("✅ Jogador atualizado e nova avaliação criada!")
                                 # safe rerun after successful save/delete
                                 trigger_rerun()
-                            except sqlite3.IntegrityError:
+                            except Exception:
                                 st.error("Já existe um jogador com esse nome. Escolha outro nome.")
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -612,8 +653,8 @@ elif page == "📚 Jogadores":
                             delete_player(int(sel_row["id"]))
                             st.success(f"Atleta {sel_row['name']} apagado com sucesso.")
                             trigger_rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("Erro ao apagar jogador: existem registros dependentes. Entre em contato com o administrador.")
+                        except Exception:
+                            st.error("Erro ao apagar jogador: existem registros dependentes ou problema de permissão. Entre em contato com o administrador.")
 
         # RIGHT: Details / Radar / Meta (visual)
         with right_col:
