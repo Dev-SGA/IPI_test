@@ -88,194 +88,155 @@ def logout_admin():
 # ---------------------------
 # Database helpers
 # ---------------------------
-def get_db():
-    # Ensure foreign keys are enabled on every new connection
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA foreign_keys = ON;")
-    except Exception:
-        pass
-    return conn
+from supabase import create_client, Client
+
+# Carrega credenciais (procura em env vars ou em st.secrets)
+SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None)
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("Supabase não configurado. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
+    st.stop()
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def init_db():
-    conn = get_db()
-    conn.executescript("""
-        PRAGMA foreign_keys = ON;
-        CREATE TABLE IF NOT EXISTS players (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE, position TEXT, club TEXT, photo_url TEXT
-        );
-        CREATE TABLE IF NOT EXISTS evaluations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_id INTEGER NOT NULL, analyst TEXT NOT NULL,
-            eval_date TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS eval_skills (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            evaluation_id INTEGER NOT NULL, category TEXT NOT NULL,
-            skill_name TEXT NOT NULL, level TEXT NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS eval_mog (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            evaluation_id INTEGER NOT NULL, category TEXT NOT NULL,
-            value INTEGER NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
-        );
-        CREATE TABLE IF NOT EXISTS eval_notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            evaluation_id INTEGER NOT NULL, note_type TEXT NOT NULL,
-            position INTEGER NOT NULL, text TEXT NOT NULL,
-            FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE
-        );
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
+    # As tabelas devem ser criadas no SQL Editor do Supabase (veja instruções). Nada a fazer em runtime.
+    return
 
 def get_players():
-    conn = get_db()
-    df = pd.read_sql("SELECT * FROM players ORDER BY name", conn)
-    conn.close()
+    resp = supabase.table("players").select("*").execute()
+    data = resp.data or []
+    df = pd.DataFrame(data)
+    if not df.empty:
+        df = df.sort_values("name").reset_index(drop=True)
     return df
 
 def add_player(name, position, club, photo_url):
-    conn = get_db()
-    conn.execute("INSERT OR IGNORE INTO players (name,position,club,photo_url) VALUES (?,?,?,?)",
-                 (name, position, club, photo_url))
-    conn.commit()
-    conn.close()
+    payload = {"name": name, "position": position, "club": club, "photo_url": photo_url}
+    resp = supabase.table("players").insert(payload).execute()
+    # resp.data pode conter o registro inserido
+    return resp
 
 def delete_player(player_id: int):
     """
-    Safe deletion of a player and all related records.
-    Some deployed DBs may not have been created with ON DELETE CASCADE,
-    so delete dependent rows manually in the correct order.
+    Com as FKs ON DELETE CASCADE no banco, basta apagar o player.
     """
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute("PRAGMA foreign_keys = ON;")
-        # Find evaluations to delete related records
-        cur.execute("SELECT id FROM evaluations WHERE player_id = ?", (player_id,))
-        eval_ids = [row[0] for row in cur.fetchall()]
-
-        for eid in eval_ids:
-            cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (eid,))
-            cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (eid,))
-            cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (eid,))
-
-        # Delete evaluations
-        cur.execute("DELETE FROM evaluations WHERE player_id = ?", (player_id,))
-        # Finally delete player
-        cur.execute("DELETE FROM players WHERE id = ?", (player_id,))
-        conn.commit()
-    except sqlite3.IntegrityError as e:
-        conn.rollback()
-        # re-raise so upper-level UI can show an error message / Streamlit will capture it
-        raise
-    finally:
-        conn.close()
+    resp = supabase.table("players").delete().eq("id", player_id).execute()
+    # Verifique resp.status_code ou resp.error se quiser lidar com erros
+    return resp
 
 def update_player(player_id: int, name: str, position: str, club: str, photo_url: str):
-    conn = get_db()
-    try:
-        conn.execute(
-            "UPDATE players SET name = ?, position = ?, club = ?, photo_url = ? WHERE id = ?",
-            (name.strip(), position.strip(), club.strip(), photo_url.strip(), player_id),
-        )
-        conn.commit()
-    except sqlite3.IntegrityError:
-        conn.close()
-        raise
-    conn.close()
+    payload = {"name": name.strip(), "position": position.strip(), "club": club.strip(), "photo_url": photo_url.strip()}
+    resp = supabase.table("players").update(payload).eq("id", player_id).execute()
+    # Se ocorrer unique constraint, supabase retornará erro — capture se desejar
+    if resp.error:
+        raise Exception(resp.error)
+    return resp
 
 def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, improvements):
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO evaluations (player_id,analyst,eval_date) VALUES (?,?,?)",
-                (player_id, analyst, eval_date))
-    eid = cur.lastrowid
+    # Inserir evaluation e depois os items relacionados
+    ev = {"player_id": player_id, "analyst": analyst, "eval_date": eval_date}
+    resp = supabase.table("evaluations").insert(ev).execute()
+    if not resp.data:
+        raise Exception("Falha ao criar avaliação")
+    eid = resp.data[0]["id"]
+
+    # eval_skills
+    rows = []
     for cat, sd in skills.items():
         for sn, lv in sd.items():
-            if sn.strip() and lv.strip():
-                cur.execute("INSERT INTO eval_skills (evaluation_id,category,skill_name,level) VALUES (?,?,?,?)",
-                            (eid, cat, sn, lv))
-    for c, v in mog.items():
-        cur.execute("INSERT INTO eval_mog (evaluation_id,category,value) VALUES (?,?,?)", (eid, c, v))
+            if str(sn).strip() and str(lv).strip():
+                rows.append({"evaluation_id": eid, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
+    if rows:
+        supabase.table("eval_skills").insert(rows).execute()
+
+    # eval_mog
+    rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in mog.items()]
+    if rows:
+        supabase.table("eval_mog").insert(rows).execute()
+
+    # eval_notes (strengths / improvements)
+    rows = []
     for i, t in enumerate(strengths):
-        if t.strip():
-            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'strength',?,?)",
-                        (eid, i + 1, t))
+        if str(t).strip():
+            rows.append({"evaluation_id": eid, "note_type": "strength", "position": i + 1, "text": t.strip()})
     for i, t in enumerate(improvements):
-        if t.strip():
-            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'improve',?,?)",
-                        (eid, i + 1, t))
-    conn.commit()
-    conn.close()
+        if str(t).strip():
+            rows.append({"evaluation_id": eid, "note_type": "improve", "position": i + 1, "text": t.strip()})
+    if rows:
+        supabase.table("eval_notes").insert(rows).execute()
+
     return eid
 
 def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
-    conn = get_db()
-    conn.execute("UPDATE evaluations SET analyst = ?, eval_date = ? WHERE id = ?", (analyst, eval_date, evaluation_id))
-    conn.commit()
-    conn.close()
+    resp = supabase.table("evaluations").update({"analyst": analyst, "eval_date": eval_date}).eq("id", evaluation_id).execute()
+    if resp.error:
+        raise Exception(resp.error)
+    return resp
 
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM eval_skills WHERE evaluation_id = ?", (evaluation_id,))
-    cur.execute("DELETE FROM eval_mog WHERE evaluation_id = ?", (evaluation_id,))
-    cur.execute("DELETE FROM eval_notes WHERE evaluation_id = ?", (evaluation_id,))
-    # Insert new
+    # Apaga conteúdo antigo e insere o novo
+    supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
+    supabase.table("eval_mog").delete().eq("evaluation_id", evaluation_id).execute()
+    supabase.table("eval_notes").delete().eq("evaluation_id", evaluation_id).execute()
+
+    # Inserir novo
+    rows = []
     for cat, sd in skills.items():
         for sn, lv in sd.items():
-            if sn.strip() and lv.strip():
-                cur.execute(
-                    "INSERT INTO eval_skills (evaluation_id,category,skill_name,level) VALUES (?,?,?,?)",
-                    (evaluation_id, cat, sn, lv)
-                )
-    for c, v in mog.items():
-        cur.execute("INSERT INTO eval_mog (evaluation_id,category,value) VALUES (?,?,?)", (evaluation_id, c, v))
+            if str(sn).strip() and str(lv).strip():
+                rows.append({"evaluation_id": evaluation_id, "category": cat, "skill_name": sn.strip(), "level": lv.strip()})
+    if rows:
+        supabase.table("eval_skills").insert(rows).execute()
+
+    rows = [{"evaluation_id": evaluation_id, "category": c, "value": int(v)} for c, v in mog.items()]
+    if rows:
+        supabase.table("eval_mog").insert(rows).execute()
+
+    rows = []
     for i, t in enumerate(strengths):
-        if t.strip():
-            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'strength',?,?)",
-                        (evaluation_id, i + 1, t))
+        if str(t).strip():
+            rows.append({"evaluation_id": evaluation_id, "note_type": "strength", "position": i + 1, "text": t.strip()})
     for i, t in enumerate(improvements):
-        if t.strip():
-            cur.execute("INSERT INTO eval_notes (evaluation_id,note_type,position,text) VALUES (?,'improve',?,?)",
-                        (evaluation_id, i + 1, t))
-    conn.commit()
-    conn.close()
+        if str(t).strip():
+            rows.append({"evaluation_id": evaluation_id, "note_type": "improve", "position": i + 1, "text": t.strip()})
+    if rows:
+        supabase.table("eval_notes").insert(rows).execute()
 
 def get_latest_evaluation(player_id):
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM evaluations WHERE player_id=? ORDER BY eval_date DESC, id DESC LIMIT 1",
-                (player_id,))
-    ev = cur.fetchone()
-    if not ev:
-        conn.close()
+    # Busca todas as avaliações do jogador e seleciona a mais recente em Python
+    resp = supabase.table("evaluations").select("*").eq("player_id", player_id).execute()
+    evs = resp.data or []
+    if not evs:
         return None
+    # ordenar por eval_date, depois id (desc)
+    evs_sorted = sorted(evs, key=lambda x: (x.get("eval_date") or "", x.get("id") or 0), reverse=True)
+    ev = evs_sorted[0]
     eid = ev["id"]
+
+    # buscar skills, mog, notes
     skills = {}
-    for r in cur.execute("SELECT category,skill_name,level FROM eval_skills WHERE evaluation_id=?", (eid,)):
+    resp = supabase.table("eval_skills").select("category,skill_name,level").eq("evaluation_id", eid).execute()
+    for r in (resp.data or []):
         skills.setdefault(r["category"], {})[r["skill_name"]] = r["level"]
+
     mog = {}
-    for r in cur.execute("SELECT category,value FROM eval_mog WHERE evaluation_id=?", (eid,)):
+    resp = supabase.table("eval_mog").select("category,value").eq("evaluation_id", eid).execute()
+    for r in (resp.data or []):
         mog[r["category"]] = r["value"]
-    strengths, improvements = [], []
-    for r in cur.execute("SELECT note_type,position,text FROM eval_notes WHERE evaluation_id=? ORDER BY position",
-                         (eid,)):
-        (strengths if r["note_type"] == "strength" else improvements).append(r["text"])
-    conn.close()
-    return {"id": eid, "analyst": ev["analyst"], "eval_date": ev["eval_date"], "skills": skills, "mog": mog,
+
+    strengths = []
+    improvements = []
+    resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).order("position", {"ascending": True}).execute()
+    for r in (resp.data or []):
+        if r["note_type"] == "strength":
+            strengths.append(r["text"])
+        else:
+            improvements.append(r["text"])
+
+    return {"id": eid, "analyst": ev.get("analyst"), "eval_date": str(ev.get("eval_date")), "skills": skills, "mog": mog,
             "strengths": strengths, "improvements": improvements}
-
-
 # ---------------------------
 # UI: Sidebar Admin area
 # ---------------------------
