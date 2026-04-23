@@ -391,6 +391,9 @@ def get_latest_evaluation(player_id):
     }
 
 
+# Module-level font registry — populated lazily on first PDF call
+_PDF_FONTS: dict = {}
+
 # ---------------------------
 # PDF Report Generator (v3 — elegant, fixed MoG bars, logo header)
 # ---------------------------
@@ -418,6 +421,45 @@ def generate_player_pdf(
 
     import io as _io
     import urllib.request as _urlreq
+    import re as _re
+
+    # ── Lazy Google Fonts registration (once per process) ────────────────
+    global _PDF_FONTS
+    if not _PDF_FONTS:
+        _fmap = {"display": "Helvetica-Bold", "body": "Helvetica", "body_b": "Helvetica-Bold"}
+        try:
+            from reportlab.pdfbase.ttfonts import TTFont as _TTF
+            from reportlab.pdfbase import pdfmetrics as _pdm
+            _ua = "Mozilla/4.0 (compatible; MSIE 5.5; Windows NT 5.0)"
+
+            def _dlfont(fam, wt, nm):
+                try:
+                    req = _urlreq.Request(
+                        f"https://fonts.googleapis.com/css?family={fam}:{wt}",
+                        headers={"User-Agent": _ua})
+                    css = _urlreq.urlopen(req, timeout=6).read().decode("utf-8")
+                    urls = _re.findall(r'src:\s*url\((https://fonts\.gstatic\.com/[^)]+)\)', css)
+                    if not urls:
+                        return False
+                    freq = _urlreq.Request(urls[0], headers={"User-Agent": _ua})
+                    _pdm.registerFont(_TTF(nm, _io.BytesIO(_urlreq.urlopen(freq, timeout=6).read())))
+                    return True
+                except Exception:
+                    return False
+
+            if _dlfont("Orbitron", "900", "Orbitron-Black"):
+                _fmap["display"] = "Orbitron-Black"
+            if _dlfont("Source+Sans+3", "400", "SourceSans3"):
+                _fmap["body"] = "SourceSans3"
+            if _dlfont("Source+Sans+3", "700", "SourceSans3-Bold"):
+                _fmap["body_b"] = "SourceSans3-Bold"
+        except Exception:
+            pass
+        _PDF_FONTS.update(_fmap)
+
+    F_DISP = _PDF_FONTS.get("display", "Helvetica-Bold")
+    F_BODY = _PDF_FONTS.get("body",    "Helvetica")
+    F_BOLD = _PDF_FONTS.get("body_b",  "Helvetica-Bold")
 
     buf = _io.BytesIO()
     PAGE_W, _ = A4
@@ -431,7 +473,9 @@ def generate_player_pdf(
     )
 
     # ── Colour palette ────────────────────────────────────────────────────
-    NAVY    = rl_colors.HexColor("#0A1929")   # top header bar
+    NAVY     = rl_colors.HexColor("#5aaaf5")   # top header bar — matches dashboard gradient
+    HDR_TEXT = rl_colors.HexColor("#0A2A4A")   # header text — matches dashboard h1
+    HDR_SEP  = rl_colors.HexColor("#1A4870")   # divider on light-blue header bg
     INDIGO  = rl_colors.HexColor("#1A237E")   # section headers
     BLUE    = rl_colors.HexColor("#1565C0")   # mog bar filled / accent
     BG      = rl_colors.HexColor("#EEF2FA")   # section body background
@@ -457,27 +501,31 @@ def generate_player_pdf(
             textColor=color or CWHT, alignment=align,
         )
 
-    S_HDR_TITLE = _ps("hdr_t",  "Helvetica-Bold", 13, 17, CWHT,  TA_RIGHT)
-    S_HDR_LOGO  = _ps("hdr_l",  "Helvetica-Bold", 16, 20, CWHT,  TA_LEFT)
-    S_SEC       = _ps("sec",    "Helvetica-Bold",  8, 11, CWHT,  TA_LEFT)
-    S_PLYR_NAME = _ps("pn",     "Helvetica-Bold", 17, 21, CDARK, TA_LEFT)
-    S_PLYR_POS  = _ps("pp",     "Helvetica-Bold", 10, 13, BLUE,  TA_LEFT)
-    S_PLYR_CLB  = _ps("pc",     "Helvetica",       9, 12, CMED,  TA_LEFT)
-    S_META      = _ps("meta",   "Helvetica",        8, 11, CMED,  TA_LEFT)
-    S_SK_LBL    = _ps("sklbl",  "Helvetica",        8, 11, CDARK, TA_RIGHT)
-    S_BADGE     = _ps("badge",  "Helvetica-Bold",   7,  9, CWHT,  TA_CENTER)
-    S_BADGE_NA  = _ps("badgna", "Helvetica",        7,  9, rl_colors.HexColor("#9E9E9E"), TA_CENTER)
-    S_MOG_CAT   = _ps("mccat",  "Helvetica-Bold",   8, 11, CDARK, TA_LEFT)
-    S_MOG_VAL   = _ps("mcval",  "Helvetica-Bold",   9, 12, BLUE,  TA_RIGHT)
-    S_NOTE_H    = _ps("noteh",  "Helvetica-Bold",   8, 11, CWHT,  TA_LEFT)
-    S_NOTE_B    = _ps("noteb",  "Helvetica",        8, 12, CDARK, TA_LEFT)
+    S_HDR_TITLE = _ps("hdr_t",  F_DISP, 13, 17, HDR_TEXT, TA_RIGHT)
+    S_HDR_LOGO  = _ps("hdr_l",  F_DISP, 16, 20, HDR_TEXT, TA_LEFT)
+    S_SEC       = _ps("sec",    F_DISP,  8, 11, CWHT,     TA_LEFT)
+    S_PLYR_NAME = _ps("pn",     F_BOLD, 17, 21, CDARK,    TA_LEFT)
+    S_PLYR_POS  = _ps("pp",     F_BOLD, 10, 13, BLUE,     TA_LEFT)
+    S_PLYR_CLB  = _ps("pc",     F_BODY,  9, 12, CMED,     TA_LEFT)
+    S_META      = _ps("meta",   F_BODY,  8, 11, CMED,     TA_LEFT)
+    S_SK_LBL    = _ps("sklbl",  F_BODY,  8, 11, CDARK,    TA_RIGHT)
+    S_BADGE     = _ps("badge",  F_BOLD,  7,  9, CWHT,     TA_CENTER)
+    S_BADGE_NA  = _ps("badgna", F_BODY,  7,  9, rl_colors.HexColor("#9E9E9E"), TA_CENTER)
+    S_MOG_CAT   = _ps("mccat",  F_BOLD,  8, 11, CDARK,    TA_LEFT)
+    S_MOG_VAL   = _ps("mcval",  F_BOLD,  9, 12, BLUE,     TA_RIGHT)
+    S_NOTE_H    = _ps("noteh",  F_DISP,  8, 11, CWHT,     TA_LEFT)
+    S_NOTE_B    = _ps("noteb",  F_BODY,  8, 12, CDARK,    TA_LEFT)
 
     # ── Fetch remote assets ───────────────────────────────────────────────
     logo_img = None
     try:
         req = _urlreq.Request(LOGO_URL, headers={"User-Agent": "Mozilla/5.0"})
         raw = _urlreq.urlopen(req, timeout=5).read()
-        logo_img = RLImage(_io.BytesIO(raw), width=42 * mm, height=14 * mm)
+        _logo_rl = RLImage(_io.BytesIO(raw))
+        _logo_target_w = 42 * mm
+        _logo_rl.drawWidth  = _logo_target_w
+        _logo_rl.drawHeight = _logo_target_w * _logo_rl.imageHeight / _logo_rl.imageWidth
+        logo_img = _logo_rl
     except Exception:
         pass
 
@@ -590,7 +638,7 @@ def generate_player_pdf(
         ("LEFTPADDING",   (0, 0), (0,  -1), 13),
         ("RIGHTPADDING",  (1, 0), (1,  -1), 13),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ("LINEAFTER",     (0, 0), (0,  -1),  1, rl_colors.HexColor("#1E4878")),
+        ("LINEAFTER",     (0, 0), (0,  -1),  1, HDR_SEP),
     ]))
     story.append(hdr)
     story.append(Spacer(1, 4 * mm))
