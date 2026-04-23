@@ -1,4 +1,4 @@
-# app.py (v2) - position-based attributes (CB, FB, CDM, AM, WG, ST)
+# app.py (v3) - position-based attributes + elegant PDF export
 import os
 import time
 import streamlit as st
@@ -13,14 +13,11 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="SGA - IDP", page_icon="⚽", layout="wide")
 
-# Admin password read from environment (fallback default)
 ADMIN_PASSWORD = os.getenv("SGA_ADMIN_PASSWORD", "changeme")
 
-# Padrão de tamanho das fotos dos jogadores (px)
 PLAYER_IMG_W = 180
 PLAYER_IMG_H = 240
 
-# Logo sources (local base64 fallback to URL)
 LOGO_URL = "https://github.com/Dev-SGA/IPI_test/blob/main/Logo_SGA_Completa_Horizontal_AzulEscuro%20(1).png?raw=true"
 LOGO_PATH = "assets/sga_logo.png"
 
@@ -37,7 +34,6 @@ def get_logo_base64(path: str) -> str:
 
 LOGO_SRC = get_logo_base64(LOGO_PATH) or LOGO_URL
 
-# Fonts
 FONT_DISPLAY = "'Orbitron', sans-serif"
 FONT_GRAPHIC = "'Source Sans 3', sans-serif"
 FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
@@ -83,7 +79,6 @@ POSITION_SKILLS = {
     ],
 }
 
-# Mental and MoG — same for all positions
 MENTAL_SKILLS = ["Awareness", "Effort", "Team Work"]
 MOG_CATEGORIES = [
     "Off. Possession", "Off. Transition", "Def. Organization",
@@ -93,7 +88,6 @@ LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
 
 def _pos_skills(position: str) -> list:
-    """Return skill list for a position code, defaulting to CB."""
     return POSITION_SKILLS.get(position, POSITION_SKILLS["CB"])
 
 
@@ -102,7 +96,6 @@ def _pos_label(position: str) -> str:
 
 
 def _section_title(position: str) -> str:
-    """Section header: e.g. 'CB – Center-Back'"""
     return f"{position} – {_pos_label(position)}"
 
 
@@ -142,7 +135,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if h
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    st.warning("Supabase não está configurado. Algumas funcionalidades de persistência podem não funcionar. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
+    st.warning("Supabase não está configurado. Defina SUPABASE_URL e SUPABASE_KEY nas variáveis de ambiente / secrets.")
     supabase = None
 else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -399,7 +392,7 @@ def get_latest_evaluation(player_id):
 
 
 # ---------------------------
-# PDF Report Generator
+# PDF Report Generator (v3 — elegant, fixed MoG bars, logo header)
 # ---------------------------
 def generate_player_pdf(
     player_name: str,
@@ -409,7 +402,7 @@ def generate_player_pdf(
     evaluation: dict,
     pos_skills_list: list,
 ) -> bytes:
-    """Generate a single-page IPI report as PDF bytes using reportlab."""
+    """Generate an elegant IPI report as PDF bytes using reportlab."""
     try:
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors as rl_colors
@@ -421,16 +414,15 @@ def generate_player_pdf(
         from reportlab.lib.styles import ParagraphStyle
         from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     except ImportError:
-        raise ImportError(
-            "reportlab não instalado. Execute: pip install reportlab"
-        )
+        raise ImportError("reportlab não instalado. Execute: pip install reportlab")
+
     import io as _io
     import urllib.request as _urlreq
 
     buf = _io.BytesIO()
     PAGE_W, _ = A4
-    MAR = 15 * mm
-    CW = PAGE_W - 2 * MAR
+    MAR = 14 * mm
+    CW = PAGE_W - 2 * MAR  # usable content width (points)
 
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -438,240 +430,321 @@ def generate_player_pdf(
         topMargin=MAR, bottomMargin=MAR,
     )
 
-    # ── colours ──────────────────────────────────────────────────────────────
-    CD    = rl_colors.HexColor("#0D47A1")
-    CM    = rl_colors.HexColor("#1E88E5")
-    CN    = rl_colors.HexColor("#0C1F3A")
-    CL    = rl_colors.HexColor("#67b6fb")
-    CGREY = rl_colors.HexColor("#ECEFF1")
-    CWHT  = rl_colors.white
-    LVL = {
-        "Above Level": rl_colors.HexColor("#1B5E20"),
-        "Good":        rl_colors.HexColor("#388E3C"),
-        "Average":     rl_colors.HexColor("#E65100"),
-        "Below Level": rl_colors.HexColor("#C62828"),
+    # ── Colour palette ────────────────────────────────────────────────────
+    NAVY    = rl_colors.HexColor("#0A1929")   # top header bar
+    INDIGO  = rl_colors.HexColor("#1A237E")   # section headers
+    BLUE    = rl_colors.HexColor("#1565C0")   # mog bar filled / accent
+    BG      = rl_colors.HexColor("#EEF2FA")   # section body background
+    CARD    = rl_colors.HexColor("#F7F9FC")   # player card background
+    CWHT    = rl_colors.white
+    CDARK   = rl_colors.HexColor("#1C2B3A")   # primary body text
+    CMED    = rl_colors.HexColor("#546E7A")   # secondary / meta text
+    CSEP    = rl_colors.HexColor("#BCC8E0")   # dividers / borders
+    CBAR_E  = rl_colors.HexColor("#D0DCEF")   # mog bar empty portion
+
+    # Badge colours — slightly pastel (muted / ~20 % lighter than v2)
+    LVL_BG = {
+        "Above Level": rl_colors.HexColor("#3D8B50"),
+        "Good":        rl_colors.HexColor("#4A9E5E"),
+        "Average":     rl_colors.HexColor("#D07A28"),
+        "Below Level": rl_colors.HexColor("#C04040"),
     }
 
-    # ── paragraph styles ─────────────────────────────────────────────────────
-    def _ps(nm, fn="Helvetica", fs=8, lh=11, tc=None, al=TA_LEFT):
-        return ParagraphStyle(nm, fontName=fn, fontSize=fs, leading=lh,
-                               textColor=tc or CWHT, alignment=al)
+    # ── Paragraph style factory ───────────────────────────────────────────
+    def _ps(name, font="Helvetica", size=9, lead=12, color=None, align=TA_LEFT):
+        return ParagraphStyle(
+            name, fontName=font, fontSize=size, leading=lead,
+            textColor=color or CWHT, alignment=align,
+        )
 
-    STITLE = _ps("stitle", "Helvetica-Bold", 15, 18)
-    SSUB   = _ps("ssub",   "Helvetica",       9, 12,
-                 rl_colors.HexColor("#CFD8DC"), TA_RIGHT)
-    SHDR   = _ps("shdr",   "Helvetica-Bold",  8, 11)
-    SLBL   = _ps("slbl",   "Helvetica",        8, 10, al=TA_RIGHT)
-    SBDG   = _ps("sbdg",   "Helvetica-Bold",   7,  9, al=TA_CENTER)
-    SBDGE  = _ps("sbdge",  "Helvetica",        7,  9,
-                 rl_colors.HexColor("#aaaaaa"), TA_CENTER)
-    SDKLBL = _ps("sdklbl", "Helvetica",        7,  9,
-                 rl_colors.HexColor("#78909C"))
-    SDKVAL = _ps("sdkval", "Helvetica-Bold",  10, 13, CD)
-    SMOGC  = _ps("smogc",  "Helvetica-Bold",   8, 11)
-    SMOGV  = _ps("smogv",  "Helvetica-Bold",   8, 11, al=TA_RIGHT)
-    SNOTE  = _ps("snote",  "Helvetica",         9, 12)
+    S_HDR_TITLE = _ps("hdr_t",  "Helvetica-Bold", 13, 17, CWHT,  TA_RIGHT)
+    S_HDR_LOGO  = _ps("hdr_l",  "Helvetica-Bold", 16, 20, CWHT,  TA_LEFT)
+    S_SEC       = _ps("sec",    "Helvetica-Bold",  8, 11, CWHT,  TA_LEFT)
+    S_PLYR_NAME = _ps("pn",     "Helvetica-Bold", 17, 21, CDARK, TA_LEFT)
+    S_PLYR_POS  = _ps("pp",     "Helvetica-Bold", 10, 13, BLUE,  TA_LEFT)
+    S_PLYR_CLB  = _ps("pc",     "Helvetica",       9, 12, CMED,  TA_LEFT)
+    S_META      = _ps("meta",   "Helvetica",        8, 11, CMED,  TA_LEFT)
+    S_SK_LBL    = _ps("sklbl",  "Helvetica",        8, 11, CDARK, TA_RIGHT)
+    S_BADGE     = _ps("badge",  "Helvetica-Bold",   7,  9, CWHT,  TA_CENTER)
+    S_BADGE_NA  = _ps("badgna", "Helvetica",        7,  9, rl_colors.HexColor("#9E9E9E"), TA_CENTER)
+    S_MOG_CAT   = _ps("mccat",  "Helvetica-Bold",   8, 11, CDARK, TA_LEFT)
+    S_MOG_VAL   = _ps("mcval",  "Helvetica-Bold",   9, 12, BLUE,  TA_RIGHT)
+    S_NOTE_H    = _ps("noteh",  "Helvetica-Bold",   8, 11, CWHT,  TA_LEFT)
+    S_NOTE_B    = _ps("noteb",  "Helvetica",        8, 12, CDARK, TA_LEFT)
 
-    # ── helpers ───────────────────────────────────────────────────────────────
-    def sec_hdr(title: str):
-        t = Table([[Paragraph(title.upper(), SHDR)]], colWidths=[CW])
-        t.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, -1), CD),
-            ("TOPPADDING",    (0, 0), (-1, -1),  5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-        ]))
-        return t
-
-    def skill_grid(items: list):
-        NCOLS = 2
-        items = list(items)
-        while len(items) % NCOLS:
-            items.append(("", ""))
-        LW = CW / NCOLS * 0.56
-        BW = CW / NCOLS * 0.44
-        cw = [LW, BW] * NCOLS
-        rows = []
-        cmds = [
-            ("BACKGROUND",    (0, 0), (-1, -1), CM),
-            ("TOPPADDING",    (0, 0), (-1, -1),  4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  4),
-            ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ]
-        for ri, row_start in enumerate(range(0, len(items), NCOLS)):
-            chunk = items[row_start: row_start + NCOLS]
-            row = []
-            for ci, (skill, level) in enumerate(chunk):
-                bcol = ci * 2 + 1
-                if skill:
-                    row.append(Paragraph(skill, SLBL))
-                    row.append(Paragraph(level or "—", SBDG if level else SBDGE))
-                    if level in LVL:
-                        cmds.append(("BACKGROUND", (bcol, ri), (bcol, ri), LVL[level]))
-                else:
-                    row.append(Paragraph("", SLBL))
-                    row.append(Paragraph("", SBDGE))
-            rows.append(row)
-        t = Table(rows, colWidths=cw)
-        t.setStyle(TableStyle(cmds))
-        return t
-
-    def notes_tbl(title: str, items: list, w: float):
-        rows = [[Paragraph(title.upper(), SHDR)]]
-        for i, txt in enumerate(items or []):
-            if txt and str(txt).strip():
-                rows.append([Paragraph(f"{i + 1}.  {txt}", SNOTE)])
-        if len(rows) == 1:
-            rows.append([Paragraph("—", SNOTE)])
-        t = Table(rows, colWidths=[w])
-        t.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (0, 0),  CD),
-            ("BACKGROUND",    (0, 1), (0, -1), CM),
-            ("TOPPADDING",    (0, 0), (-1, -1),  5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
-        ]))
-        return t
-
-    # ── build story ───────────────────────────────────────────────────────────
-    story = []
-    sk = (evaluation or {}).get("skills", {})
-
-    # Header bar
-    hdr = Table(
-        [[Paragraph(player_name, STITLE),
-          Paragraph(f"{position or '—'} • {club or '—'}", SSUB)]],
-        colWidths=[CW * 0.62, CW * 0.38],
-    )
-    hdr.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), CD),
-        ("TOPPADDING",    (0, 0), (-1, -1), 12),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-        ("LEFTPADDING",   (0, 0), (0, -1),  14),
-        ("RIGHTPADDING",  (1, 0), (1, -1),  14),
-        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-    ]))
-    story.append(hdr)
-    story.append(Spacer(1, 3 * mm))
-
-    # Info card (photo + analyst/date)
-    analyst_val   = (evaluation or {}).get("analyst", "—")
-    eval_date_val = (evaluation or {}).get("eval_date", "—")
+    # ── Fetch remote assets ───────────────────────────────────────────────
+    logo_img = None
+    try:
+        req = _urlreq.Request(LOGO_URL, headers={"User-Agent": "Mozilla/5.0"})
+        raw = _urlreq.urlopen(req, timeout=5).read()
+        logo_img = RLImage(_io.BytesIO(raw), width=42 * mm, height=14 * mm)
+    except Exception:
+        pass
 
     photo_img = None
     if photo_url:
         try:
             req = _urlreq.Request(photo_url, headers={"User-Agent": "Mozilla/5.0"})
             raw = _urlreq.urlopen(req, timeout=4).read()
-            photo_img = RLImage(_io.BytesIO(raw), width=26 * mm, height=35 * mm)
+            photo_img = RLImage(_io.BytesIO(raw), width=28 * mm, height=37 * mm)
         except Exception:
             pass
 
-    info_w   = CW - (30 * mm if photo_img else 0)
-    info_row = [
-        Paragraph("ANALYST",          SDKLBL),
-        Paragraph(str(analyst_val),   SDKVAL),
-        Paragraph("DATE",             SDKLBL),
-        Paragraph(str(eval_date_val), SDKVAL),
+    # ── Helper: section header ────────────────────────────────────────────
+    def sec_hdr(title: str):
+        t = Table([[Paragraph(title.upper(), S_SEC)]], colWidths=[CW])
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), INDIGO),
+            ("TOPPADDING",    (0, 0), (-1, -1),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+        ]))
+        return t
+
+    # ── Helper: 2-column skill badge grid ────────────────────────────────
+    def skill_grid(items: list):
+        NCOLS = 2
+        items = list(items)
+        while len(items) % NCOLS:
+            items.append(("", ""))
+
+        SLOT_W = CW / NCOLS
+        LBL_W  = SLOT_W * 0.60
+        BDG_W  = SLOT_W * 0.40
+        col_ws = [LBL_W, BDG_W] * NCOLS
+
+        rows = []
+        cmds = [
+            ("BACKGROUND",    (0, 0), (-1, -1), BG),
+            ("TOPPADDING",    (0, 0), (-1, -1),  5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+            ("LEFTPADDING",   (0, 0), (-1, -1),  8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),  8),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+
+        for ri, row_start in enumerate(range(0, len(items), NCOLS)):
+            chunk = items[row_start: row_start + NCOLS]
+            row = []
+            for ci, (skill, level) in enumerate(chunk):
+                bcol = ci * 2 + 1
+                if skill:
+                    row.append(Paragraph(skill, S_SK_LBL))
+                    if level in LVL_BG:
+                        row.append(Paragraph(level, S_BADGE))
+                        cmds.append(("BACKGROUND", (bcol, ri), (bcol, ri), LVL_BG[level]))
+                    elif level:
+                        row.append(Paragraph(level, S_BADGE))
+                    else:
+                        row.append(Paragraph("—", S_BADGE_NA))
+                else:
+                    row.append(Paragraph("", S_SK_LBL))
+                    row.append(Paragraph("", S_BADGE_NA))
+            rows.append(row)
+
+        # Subtle row dividers
+        for ri in range(len(rows) - 1):
+            cmds.append(("LINEBELOW", (0, ri), (-1, ri), 0.5, CSEP))
+
+        t = Table(rows, colWidths=col_ws)
+        t.setStyle(TableStyle(cmds))
+        return t
+
+    # ── Helper: notes table ───────────────────────────────────────────────
+    def notes_tbl(title: str, items: list, w: float):
+        rows = [[Paragraph(title.upper(), S_NOTE_H)]]
+        for i, txt in enumerate(items or []):
+            if txt and str(txt).strip():
+                rows.append([Paragraph(f"{i + 1}.  {str(txt).strip()}", S_NOTE_B)])
+        if len(rows) == 1:
+            rows.append([Paragraph("—", S_NOTE_B)])
+        t = Table(rows, colWidths=[w])
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (0,  0), INDIGO),
+            ("BACKGROUND",    (0, 1), (0, -1), BG),
+            ("TOPPADDING",    (0, 0), (-1, -1),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ]))
+        return t
+
+    # ── Build story ───────────────────────────────────────────────────────
+    story = []
+    sk            = (evaluation or {}).get("skills", {})
+    analyst_val   = str((evaluation or {}).get("analyst",  "—") or "—")
+    eval_date_val = str((evaluation or {}).get("eval_date","—") or "—")
+
+    # 1 ── Header bar (logo + title, mirroring the dashboard header)
+    LOGO_COL_W = 44 * mm if logo_img else 28 * mm
+    hdr_left   = logo_img if logo_img else Paragraph("SGA", S_HDR_LOGO)
+    hdr_right  = Paragraph("INDIVIDUAL PLAYER INDICATORS", S_HDR_TITLE)
+
+    hdr = Table([[hdr_left, hdr_right]], colWidths=[LOGO_COL_W, CW - LOGO_COL_W])
+    hdr.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), NAVY),
+        ("TOPPADDING",    (0, 0), (-1, -1), 11),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 11),
+        ("LEFTPADDING",   (0, 0), (0,  -1), 13),
+        ("RIGHTPADDING",  (1, 0), (1,  -1), 13),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEAFTER",     (0, 0), (0,  -1),  1, rl_colors.HexColor("#1E4878")),
+    ]))
+    story.append(hdr)
+    story.append(Spacer(1, 4 * mm))
+
+    # 2 ── Player profile card
+    PHOTO_W = 30 * mm
+    INFO_W  = CW - PHOTO_W if photo_img else CW
+
+    pos_label_str = (
+        f"{position} – {POSITION_LABELS.get(position, position)}"
+        if position in POSITIONS else (position or "—")
+    )
+    meta_str = f"Analyst: {analyst_val}   •   Date: {eval_date_val}"
+
+    info_rows = [
+        [Paragraph(player_name, S_PLYR_NAME)],
+        [Paragraph(pos_label_str, S_PLYR_POS)],
+        [Paragraph(club or "—", S_PLYR_CLB)],
+        [Paragraph(meta_str, S_META)],
     ]
-    info_t = Table([info_row], colWidths=[info_w / 4] * 4)
+    info_t = Table(info_rows, colWidths=[INFO_W])
     info_t.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), CGREY),
-        ("TOPPADDING",    (0, 0), (-1, -1),  8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1),  8),
-        ("LEFTPADDING",   (0, 0), (-1, -1),  8),
+        ("TOPPADDING",    (0, 0), (0, 0),   5),
+        ("BOTTOMPADDING", (0, 0), (0, 0),   2),
+        ("TOPPADDING",    (0, 1), (0, 1),   1),
+        ("BOTTOMPADDING", (0, 1), (0, 1),   1),
+        ("TOPPADDING",    (0, 2), (0, 2),   1),
+        ("BOTTOMPADDING", (0, 2), (0, 2),   5),
+        ("TOPPADDING",    (0, 3), (0, 3),   4),
+        ("BOTTOMPADDING", (0, 3), (0, 3),   5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
         ("RIGHTPADDING",  (0, 0), (-1, -1),  8),
-        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
     ]))
 
     if photo_img:
-        card = Table([[photo_img, info_t]], colWidths=[30 * mm, CW - 30 * mm])
-        card.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, -1), CGREY),
-            ("TOPPADDING",    (0, 0), (-1, -1),  6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
-            ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
+        profile_t = Table([[photo_img, info_t]], colWidths=[PHOTO_W, INFO_W])
+        profile_t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), CARD),
+            ("TOPPADDING",    (0, 0), (0,  -1),  8),
+            ("BOTTOMPADDING", (0, 0), (0,  -1),  8),
+            ("LEFTPADDING",   (0, 0), (0,  -1),  8),
+            ("RIGHTPADDING",  (0, 0), (0,  -1),  4),
+            ("LEFTPADDING",   (1, 0), (1,  -1),  0),
+            ("RIGHTPADDING",  (1, 0), (1,  -1),  0),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("BOX",           (0, 0), (-1, -1), 0.5, CSEP),
         ]))
-        story.append(card)
     else:
-        story.append(info_t)
-    story.append(Spacer(1, 3 * mm))
+        profile_t = Table([[info_t]], colWidths=[CW])
+        profile_t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), CARD),
+            ("TOPPADDING",    (0, 0), (-1, -1),  0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  0),
+            ("LEFTPADDING",   (0, 0), (-1, -1),  0),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),  0),
+            ("BOX",           (0, 0), (-1, -1), 0.5, CSEP),
+        ]))
 
-    # Technical
+    story.append(profile_t)
+    story.append(Spacer(1, 4 * mm))
+
+    # 3 ── Technical Indicators
     pos_code   = position if position in POSITIONS else None
     tskills    = pos_skills_list if pos_code else list(sk.get("technical", {}).keys())
-    t_title    = (f"{pos_code} – {POSITION_LABELS.get(pos_code, pos_code)}"
-                  if pos_code else "Technical")
     tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in tskills]
-    story.append(sec_hdr(t_title))
-    story.append(skill_grid(tech_items) if tech_items else Spacer(1, 2 * mm))
-    story.append(Spacer(1, 3 * mm))
+    story.append(sec_hdr("Technical Indicators"))
+    if tech_items:
+        story.append(skill_grid(tech_items))
+    story.append(Spacer(1, 4 * mm))
 
-    # Player-Specific
+    # 4 ── Player-Specific Indicators (only if present)
     ps_dict = sk.get("player_specific", {})
     if ps_dict:
         story.append(sec_hdr("Player-Specific Indicators"))
         story.append(skill_grid(list(ps_dict.items())))
-        story.append(Spacer(1, 3 * mm))
+        story.append(Spacer(1, 4 * mm))
 
-    # Mental
+    # 5 ── Mental
     mental_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
     story.append(sec_hdr("Mental"))
-    story.append(skill_grid(mental_items))
-    story.append(Spacer(1, 3 * mm))
+    if mental_items:
+        story.append(skill_grid(mental_items))
+    story.append(Spacer(1, 4 * mm))
 
-    # MoG
+    # 6 ── Moments of the Game — bars constrained to cell width
     mog_data = (evaluation or {}).get("mog", {})
     if mog_data:
         story.append(sec_hdr("Moments of the Game (MoG)"))
-        BAR_W = CW - 55 * mm - 12 * mm
+
+        LBL_W  = 52 * mm
+        VAL_W  = 13 * mm
+        BAR_CW = CW - LBL_W - VAL_W   # total bar column width (points)
+        BAR_LP = 6                     # bar cell left padding (points)
+        BAR_RP = 6                     # bar cell right padding (points)
+        BAR_IW = BAR_CW - BAR_LP - BAR_RP  # drawable bar width
+
         mog_rows = []
         mog_cmds = [
-            ("BACKGROUND",    (0, 0), (-1, -1), CN),
-            ("TOPPADDING",    (0, 0), (-1, -1),  5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
+            ("BACKGROUND",    (0, 0), (-1, -1), BG),
+            ("TOPPADDING",    (0, 0), (-1, -1),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
+            ("LEFTPADDING",   (0, 0), (0,  -1), 10),   # label
+            ("RIGHTPADDING",  (0, 0), (0,  -1),  4),
+            ("LEFTPADDING",   (1, 0), (1,  -1),  4),   # value
+            ("RIGHTPADDING",  (1, 0), (1,  -1),  8),
+            ("LEFTPADDING",   (2, 0), (2,  -1), BAR_LP),  # bar cell
+            ("RIGHTPADDING",  (2, 0), (2,  -1), BAR_RP),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]
+
         mog_list = list(mog_data.items())
         for ri, (cat, raw) in enumerate(mog_list):
             try:
                 v = max(0, min(100, int(raw)))
             except Exception:
                 v = 0
-            filled = max(1, int(BAR_W * v / 100))
-            empty  = max(1, int(BAR_W - filled))
-            bar = Table([["", ""]], colWidths=[filled, empty])
+
+            fw = BAR_IW * v / 100
+            ew = BAR_IW - fw
+            # Prevent zero-width columns
+            if fw < 1:
+                fw, ew = 1.0, BAR_IW - 1.0
+            elif ew < 1:
+                ew, fw = 1.0, BAR_IW - 1.0
+
+            bar = Table([["", ""]], colWidths=[fw, ew])
             bar.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (0, 0), CL),
-                ("BACKGROUND",    (1, 0), (1, 0), rl_colors.HexColor("#1a3a5c")),
-                ("TOPPADDING",    (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("BACKGROUND",    (0, 0), (0, 0), BLUE),
+                ("BACKGROUND",    (1, 0), (1, 0), CBAR_E),
+                ("TOPPADDING",    (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("LEFTPADDING",   (0, 0), (-1, -1), 0),
                 ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
             ]))
-            mog_rows.append([Paragraph(cat, SMOGC), Paragraph(str(v), SMOGV), bar])
+
+            mog_rows.append([
+                Paragraph(cat, S_MOG_CAT),
+                Paragraph(str(v), S_MOG_VAL),
+                bar,
+            ])
             if ri < len(mog_list) - 1:
-                mog_cmds.append(
-                    ("LINEBELOW", (0, ri), (-1, ri), 0.5, rl_colors.HexColor("#1a3a5c"))
-                )
-        mog_t = Table(mog_rows, colWidths=[55 * mm, 12 * mm, BAR_W])
+                mog_cmds.append(("LINEBELOW", (0, ri), (-1, ri), 0.5, CSEP))
+
+        mog_t = Table(mog_rows, colWidths=[LBL_W, VAL_W, BAR_CW])
         mog_t.setStyle(TableStyle(mog_cmds))
         story.append(mog_t)
-        story.append(Spacer(1, 3 * mm))
+        story.append(Spacer(1, 4 * mm))
 
-    # Strengths / Improvements
+    # 7 ── Strengths / Need to Improve
     strengths    = (evaluation or {}).get("strengths", [])
     improvements = (evaluation or {}).get("improvements", [])
     half = (CW - 3 * mm) / 2
     si = Table(
-        [[notes_tbl("My Strengths",   strengths,    half),
+        [[notes_tbl("My Strengths",    strengths,    half),
           notes_tbl("Need to Improve", improvements, half)]],
         colWidths=[half + 1.5 * mm, half + 1.5 * mm],
     )
@@ -762,7 +835,6 @@ elif page == "📝 Nova Avaliação":
         st.warning("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador**.")
         st.stop()
 
-    # Player and position selectors OUTSIDE the form so skills render dynamically
     sel_col, pos_col = st.columns(2)
     with sel_col:
         player_name = st.selectbox("Jogador", players_df["name"].tolist(), key="eval_player_sel")
@@ -835,7 +907,6 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
-        # Strengths / Improve
         col_s, col_i = st.columns(2)
         with col_s:
             st.subheader("💪 My Strengths")
@@ -895,7 +966,6 @@ elif page == "📚 Jogadores":
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
         evaluation = get_latest_evaluation(int(sel_row["id"]))
 
-        # Resolve position for evaluation skill rendering
         stored_edit_pos = sel_row["position"] if sel_row["position"] in POSITIONS else POSITIONS[0]
 
         left_col, right_col = st.columns([1, 2], gap="large")
@@ -921,11 +991,9 @@ elif page == "📚 Jogadores":
                         unsafe_allow_html=True,
                     )
             else:
-                # admin: show full edit card
                 st.markdown('<div class="block-container card" style="padding:12px">', unsafe_allow_html=True)
                 st.markdown('### ✏️ Editar jogador')
 
-                # Position selector outside the form so skills render correctly after position change
                 edit_pos_key = f"edit_eval_pos_{sel_row['id']}"
                 if edit_pos_key not in st.session_state:
                     st.session_state[edit_pos_key] = stored_edit_pos
@@ -939,7 +1007,6 @@ elif page == "📚 Jogadores":
                 edit_pos_skills = _pos_skills(edit_position)
 
                 with st.form(f"form_edit_{sel_row['id']}"):
-                    # Player basic info (position stored from selector above)
                     new_name = st.text_input("Nome completo *", value=sel_row["name"])
                     new_club = st.text_input("Clube", value=sel_row["club"] or "")
                     new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
@@ -970,7 +1037,6 @@ elif page == "📚 Jogadores":
                     analyst_input = st.text_input("Analista", value=analyst_val)
                     eval_date_input = st.date_input("Data da avaliação", value=eval_date_prefill)
 
-                    # Technical — position-specific
                     st.subheader(f"🎯 {_section_title(edit_position)}")
                     tech_vals = {}
                     for s in edit_pos_skills:
@@ -983,7 +1049,6 @@ elif page == "📚 Jogadores":
                             key=f"edit_t_{sel_row['id']}_{s}",
                         )
 
-                    # Player-Specific Indicators (customizable)
                     st.subheader("⚡ Player-Specific Indicators (até 4)")
                     existing_ps = {}
                     if evaluation and evaluation.get("skills", {}).get("player_specific", {}):
@@ -1003,7 +1068,6 @@ elif page == "📚 Jogadores":
                         ps_names.append(n)
                         ps_levels.append(l)
 
-                    # Mental — same for all
                     st.subheader("🧠 Mental")
                     mental_vals = {}
                     for s in MENTAL_SKILLS:
@@ -1171,10 +1235,10 @@ elif page == "📚 Jogadores":
 # ---------------------------
 else:
     BADGE_STYLES = {
-        "Above Level": {"bg": "rgba(27,94,32,0.85)", "fg": "#FFFFFF"},
-        "Good": {"bg": "rgba(102,187,106,0.72)", "fg": "#FFFFFF"},
-        "Average": {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},
-        "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},
+        "Above Level": {"bg": "rgba(27,94,32,0.85)",  "fg": "#FFFFFF"},
+        "Good":        {"bg": "rgba(102,187,106,0.72)","fg": "#FFFFFF"},
+        "Average":     {"bg": "rgba(230,168,23,0.75)", "fg": "#FFFFFF"},
+        "Below Level": {"bg": "rgba(198,40,40,0.75)",  "fg": "#FFFFFF"},
     }
 
     st.markdown(
@@ -1207,187 +1271,105 @@ else:
         pointer-events: none;
     }
     .block-container .header-bar .header-logo {
-        height: 96px;
-        width: auto;
-        object-fit: contain;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
+        height: 96px; width: auto; object-fit: contain;
+        flex-shrink: 0; position: relative; z-index: 1;
     }
     .block-container .header-bar .header-sep {
-        width: 2px;
-        height: 72px;
+        width: 2px; height: 72px;
         background: rgba(10,42,74,0.2);
-        border-radius: 1px;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
+        border-radius: 1px; flex-shrink: 0;
+        position: relative; z-index: 1;
     }
     .block-container .header-bar h1 {
         font-family: __FD__ !important;
-        color: #0a2a4a;
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 900;
-        letter-spacing: 2.5px;
-        text-transform: uppercase;
-        position: relative;
-        z-index: 1;
-        line-height: 1.2;
+        color: #0a2a4a; margin: 0;
+        font-size: 2rem; font-weight: 900;
+        letter-spacing: 2.5px; text-transform: uppercase;
+        position: relative; z-index: 1; line-height: 1.2;
     }
-
     .block-container .card {
-        background: white;
-        border-radius: 12px;
-        padding: 20px;
+        background: white; border-radius: 12px; padding: 20px;
         box-shadow: 0 2px 12px rgba(13,71,161,0.12);
     }
     .block-container .player-card { text-align: center; }
     .block-container .player-card .divider {
-        width: 50px; height: 3px;
-        background: #67b6fb;
-        border-radius: 2px;
-        margin: 10px auto;
+        width: 50px; height: 3px; background: #67b6fb;
+        border-radius: 2px; margin: 10px auto;
     }
     .block-container .player-card .label {
-        font-family: __FG__ !important;
-        font-size: 0.72rem;
-        color: #78909C;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-        font-weight: 700;
+        font-family: __FG__ !important; font-size: 0.72rem;
+        color: #78909C; text-transform: uppercase;
+        letter-spacing: 1.5px; font-weight: 700;
     }
     .block-container .player-card .value {
-        font-family: __FG__ !important;
-        font-size: 1.05rem;
-        color: #0D47A1;
-        font-weight: 700;
-        margin-bottom: 10px;
+        font-family: __FG__ !important; font-size: 1.05rem;
+        color: #0D47A1; font-weight: 700; margin-bottom: 10px;
     }
-
     .block-container .section {
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        margin-bottom: 16px;
+        border-radius: 12px; overflow: hidden;
+        box-shadow: 0 2px 10px rgba(13,71,161,0.12); margin-bottom: 16px;
     }
     .block-container .section-header {
-        background: #0D47A1;
-        color: white;
-        padding: 10px 20px;
-        font-family: __FD__ !important;
-        font-size: 0.9rem;
-        font-weight: 700;
-        letter-spacing: 1px;
-        text-transform: uppercase;
+        background: #0D47A1; color: white;
+        padding: 10px 20px; font-family: __FD__ !important;
+        font-size: 0.9rem; font-weight: 700;
+        letter-spacing: 1px; text-transform: uppercase;
     }
-    .block-container .section-body {
-        background: #1E88E5;
-        padding: 14px 20px;
-    }
-
+    .block-container .section-body { background: #1E88E5; padding: 14px 20px; }
     .block-container .radar-outer {
-        background: #0C1F3A;
-        border-radius: 12px;
+        background: #0C1F3A; border-radius: 12px;
         box-shadow: 0 2px 10px rgba(13,71,161,0.12);
-        overflow: hidden;
-        margin-bottom: 8px;
+        overflow: hidden; margin-bottom: 8px;
     }
     .block-container .radar-title {
-        background: #0C1F3A;
-        color: white;
-        text-align: center;
-        font-family: __FD__ !important;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        padding: 8px 12px 6px 12px;
-        margin-bottom: 0;
+        background: #0C1F3A; color: white; text-align: center;
+        font-family: __FD__ !important; font-size: 0.85rem;
+        font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+        padding: 8px 12px 6px 12px; margin-bottom: 0;
     }
     .block-container .radar-body { background: #0C1F3A; padding: 0 8px 12px 8px; }
     .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
-
     .block-container .badge-table {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
+        width: 100%; border-collapse: collapse; table-layout: fixed;
     }
-    .block-container .badge-table td {
-        padding: 8px 8px;
-        vertical-align: middle;
-    }
+    .block-container .badge-table td { padding: 8px 8px; vertical-align: middle; }
     .block-container .badge-table .cell-label {
-        color: white;
-        font-family: __FG__ !important;
-        font-size: 0.92rem;
-        font-weight: 600;
-        text-align: right;
-        padding-right: 14px;
-        white-space: normal;
-        word-break: break-word;
+        color: white; font-family: __FG__ !important;
+        font-size: 0.92rem; font-weight: 600;
+        text-align: right; padding-right: 14px;
+        white-space: normal; word-break: break-word;
     }
-    .block-container .badge-table .cell-tag {
-        text-align: left;
-        white-space: nowrap;
-    }
+    .block-container .badge-table .cell-tag { text-align: left; white-space: nowrap; }
     .block-container .badge-tag {
-        display: inline-block;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-family: __FG__ !important;
-        font-size: 0.82rem;
-        font-weight: 700;
-        white-space: nowrap;
-        min-width: 90px;
-        text-align: center;
+        display: inline-block; padding: 6px 12px; border-radius: 6px;
+        font-family: __FG__ !important; font-size: 0.82rem; font-weight: 700;
+        white-space: nowrap; min-width: 90px; text-align: center;
         box-shadow: inset 0 -2px 0 rgba(0,0,0,0.06);
     }
-
-    .block-container .text-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
+    .block-container .text-list { list-style: none; padding: 0; margin: 0; }
     .block-container .text-list li {
-        color: white;
-        font-family: __FDO__ !important;
-        font-size: 0.95rem;
-        font-weight: 600;
-        padding: 5px 0;
-        border-bottom: 1px solid rgba(255,255,255,0.15);
+        color: white; font-family: __FDO__ !important;
+        font-size: 0.95rem; font-weight: 600;
+        padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.15);
     }
     .block-container .text-list li:last-child { border-bottom: none; }
     .block-container .text-list .num {
-        display: inline-block;
-        width: 24px; height: 24px;
-        line-height: 24px;
-        text-align: center;
-        background: rgba(255,255,255,0.2);
-        border-radius: 50%;
-        font-size: 0.8rem;
-        margin-right: 8px;
+        display: inline-block; width: 24px; height: 24px;
+        line-height: 24px; text-align: center;
+        background: rgba(255,255,255,0.2); border-radius: 50%;
+        font-size: 0.8rem; margin-right: 8px;
     }
-
     .block-container .no-data-msg {
-        text-align: center;
-        padding: 40px 20px;
-        color: #78909C;
-        font-size: 1.1rem;
+        text-align: center; padding: 40px 20px;
+        color: #78909C; font-size: 1.1rem;
     }
     .block-container .eval-meta {
-        background: rgba(13,71,161,0.06);
-        border-radius: 8px;
-        padding: 8px 16px;
-        margin-top: 8px;
-        font-family: __FDO__ !important;
-        font-size: 0.85rem;
-        color: #546E7A;
+        background: rgba(13,71,161,0.06); border-radius: 8px;
+        padding: 8px 16px; margin-top: 8px;
+        font-family: __FDO__ !important; font-size: 0.85rem; color: #546E7A;
     }
     .block-container div[data-testid="stSelectbox"] label {
-        font-weight: 600;
-        color: #0D47A1;
-        font-family: __FG__ !important;
+        font-weight: 600; color: #0D47A1; font-family: __FG__ !important;
     }
     </style>
     """
@@ -1496,8 +1478,7 @@ else:
     pr = players_df[players_df["name"] == player_name].iloc[0]
     evaluation = get_latest_evaluation(int(pr["id"]))
 
-    # Resolve player's position for skill rendering
-    dash_pos = pr["position"] if pr["position"] in POSITIONS else None
+    dash_pos    = pr["position"] if pr["position"] in POSITIONS else None
     dash_skills = _pos_skills(dash_pos) if dash_pos else []
 
     left_col, right_col = st.columns([1, 3], gap="large")
@@ -1546,30 +1527,26 @@ else:
 
         sk = evaluation["skills"]
 
-        # Technical — title reflects the player's position
+        # Technical — always labelled "Technical Indicators" in the dashboard
+        tech_title = "Technical Indicators"
         if dash_pos:
-            tech_title = _section_title(dash_pos)
             tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in dash_skills]
         else:
-            # Fallback: show whatever is stored under "technical"
-            tech_title = "Technical"
             stored_tech = sk.get("technical", {})
             tech_items = [(n, l) for n, l in stored_tech.items()]
 
-        # Pad to multiple of 4
         while len(tech_items) % 4 != 0:
             tech_items.append(("", ""))
-
         st.markdown(render_section(tech_title, render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
-        # Player-Specific (preserve input order, padded to multiple of 4)
-        ps_data = sk.get("player_specific", {})
+        # Player-Specific
+        ps_data  = sk.get("player_specific", {})
         ps_items = [(n, l) for n, l in ps_data.items()]
         while len(ps_items) % 4 != 0:
             ps_items.append(("", ""))
         st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
 
-        # Mental (fixed order, padded)
+        # Mental
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
         while len(m_items) % 4 != 0:
             m_items.append(("", ""))
