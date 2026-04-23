@@ -508,6 +508,22 @@ elif page == "📝 Nova Avaliação":
 
         st.divider()
 
+        # Player-Specific Indicators (customizable)
+        st.subheader("⚡ Player-Specific Indicators")
+        st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
+        ps = {}
+        pn = st.columns(4)
+        pl = st.columns(4)
+        for i in range(4):
+            with pn[i]:
+                an = st.text_input(f"Atributo {i+1}", key=f"psn_{i}", placeholder="Ex: Speed")
+            with pl[i]:
+                al = st.selectbox(f"Nível {i+1}", [""] + LEVELS, key=f"psl_{i}")
+            if an.strip() and al:
+                ps[an.strip()] = al
+
+        st.divider()
+
         # Mental — same for all
         st.subheader("🧠 Mental")
         mc = st.columns(4)
@@ -553,7 +569,7 @@ elif page == "📝 Nova Avaliação":
                         player_id=player_id,
                         analyst=analyst.strip(),
                         eval_date=eval_date.isoformat(),
-                        skills={"technical": tv, "mental": mv},
+                        skills={"technical": tv, "player_specific": ps, "mental": mv},
                         mog=mgv,
                         strengths=[s1, s2, s3],
                         improvements=[i1, i2, i3],
@@ -676,6 +692,26 @@ elif page == "📚 Jogadores":
                             key=f"edit_t_{sel_row['id']}_{s}",
                         )
 
+                    # Player-Specific Indicators (customizable)
+                    st.subheader("⚡ Player-Specific Indicators (até 4)")
+                    existing_ps = {}
+                    if evaluation and evaluation.get("skills", {}).get("player_specific", {}):
+                        existing_ps = evaluation["skills"]["player_specific"].copy()
+                    ps_items_edit = list(existing_ps.items())
+                    while len(ps_items_edit) < 4:
+                        ps_items_edit.append(("", ""))
+                    ps_names = []
+                    ps_levels = []
+                    for i in range(4):
+                        default_name = ps_items_edit[i][0]
+                        default_level = ps_items_edit[i][1] if ps_items_edit[i][1] in LEVELS else ""
+                        n = st.text_input(f"Atributo {i+1}", value=default_name or "", key=f"edit_ps_name_{sel_row['id']}_{i}")
+                        l = st.selectbox(f"Nível {i+1}", [""] + LEVELS,
+                                         index=([""] + LEVELS).index(default_level) if default_level in LEVELS else 0,
+                                         key=f"edit_ps_level_{sel_row['id']}_{i}")
+                        ps_names.append(n)
+                        ps_levels.append(l)
+
                     # Mental — same for all
                     st.subheader("🧠 Mental")
                     mental_vals = {}
@@ -725,8 +761,13 @@ elif page == "📚 Jogadores":
 
                                 technical_payload = {s: (tech_vals[s] or "").strip() for s in edit_pos_skills}
                                 mental_payload = {s: (mental_vals[s] or "").strip() for s in MENTAL_SKILLS}
+                                ps_payload = {}
+                                for n, l in zip(ps_names, ps_levels):
+                                    if n.strip() and l:
+                                        ps_payload[n.strip()] = l
                                 skills_payload = {
                                     "technical": technical_payload,
+                                    "player_specific": ps_payload,
                                     "mental": mental_payload,
                                 }
                                 mog_payload = {c: int(mog_vals[c]) for c in MOG_CATEGORIES}
@@ -1229,6 +1270,13 @@ else:
             tech_items.append(("", ""))
 
         st.markdown(render_section(tech_title, render_badges_table(tech_items, 4)), unsafe_allow_html=True)
+
+        # Player-Specific (preserve input order, padded to multiple of 4)
+        ps_data = sk.get("player_specific", {})
+        ps_items = [(n, l) for n, l in ps_data.items()]
+        while len(ps_items) % 4 != 0:
+            ps_items.append(("", ""))
+        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
 
         # Mental (fixed order, padded)
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
