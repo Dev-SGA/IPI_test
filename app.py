@@ -1,4 +1,4 @@
-# app.py (v19) - estética v14 restaurada + Supabase backend com tratamento robusto de respostas
+# app.py (v2) - position-based attributes (CB, FB, CDM, AM, WG, ST)
 import os
 import time
 import streamlit as st
@@ -42,11 +42,48 @@ FONT_DISPLAY = "'Orbitron', sans-serif"
 FONT_GRAPHIC = "'Source Sans 3', sans-serif"
 FONT_DOCUMENT = "'Trebuchet MS', 'Source Sans 3', sans-serif"
 
-# Domain definitions
-TECHNICAL_SKILLS = [
-    "General Passing", "1st Touch", "Head. Direction", "1v1 Defending",
-    "Crossing", "1v1 Attacking", "Aerials Duels", "Off Ball Def.",
-]
+# ---------------------------
+# Position definitions
+# ---------------------------
+POSITIONS = ["CB", "FB", "CDM", "AM", "WG", "ST"]
+
+POSITION_LABELS = {
+    "CB":  "Center-Back",
+    "FB":  "Full-Back",
+    "CDM": "Central Def. Midfielder",
+    "AM":  "Attacking Midfielder",
+    "WG":  "Winger",
+    "ST":  "Striker",
+}
+
+POSITION_SKILLS = {
+    "CB": [
+        "General Passing", "Long Ball", "1st Touch", "Carrying",
+        "Heading Direction", "Aerial Duels", "1v1 Defending", "Off Ball Defending",
+    ],
+    "FB": [
+        "General Passing", "Crossing", "1st Touch", "1v1 Attacking",
+        "Heading Direction", "Aerial Duels", "1v1 Defending", "Off Ball Defending",
+    ],
+    "CDM": [
+        "General Passing", "Progressive Passing", "1st Touch", "Pressure Evasion",
+        "Aerial Duels", "Second Ball Reaction", "Cover & Balance", "Interceptions",
+    ],
+    "AM": [
+        "Final Third Passing", "Through Balls", "1st Touch", "1v1 Attacking",
+        "Finishing", "Box Positioning", "Pressing Actions", "Counter-Pressing React",
+    ],
+    "WG": [
+        "Final Ball", "Combination Play", "1v1 Attacking", "Ball Carrying in Space",
+        "Finishing", "Aerial Timing", "Pressing Actions", "Tracking Back",
+    ],
+    "ST": [
+        "Link-Up Play", "Final Pass", "Ball Protection", "Finishing Touches",
+        "Finishing", "Heading", "Pressing Triggers", "Defensive Positioning",
+    ],
+}
+
+# Mental and MoG — same for all positions
 MENTAL_SKILLS = ["Awareness", "Effort", "Team Work"]
 MOG_CATEGORIES = [
     "Off. Possession", "Off. Transition", "Def. Organization",
@@ -54,12 +91,25 @@ MOG_CATEGORIES = [
 ]
 LEVELS = ["Above Level", "Good", "Average", "Below Level"]
 
+
+def _pos_skills(position: str) -> list:
+    """Return skill list for a position code, defaulting to CB."""
+    return POSITION_SKILLS.get(position, POSITION_SKILLS["CB"])
+
+
+def _pos_label(position: str) -> str:
+    return POSITION_LABELS.get(position, position)
+
+
+def _section_title(position: str) -> str:
+    """Section header: e.g. 'CB – Center-Back'"""
+    return f"{position} – {_pos_label(position)}"
+
+
 # ---------------------------
-# Helper: trigger safe rerun (avoid st.experimental_rerun() in nested contexts)
+# Helper: trigger safe rerun
 # ---------------------------
 def trigger_rerun():
-    # Try to force a rerun by changing the query params. If that fails (race),
-    # fall back to setting a session_state token so no exception bubbles up.
     try:
         st.experimental_set_query_params(_refresh=int(time.time()))
     except Exception:
@@ -86,9 +136,8 @@ def logout_admin():
 
 
 # ---------------------------
-# Database helpers (Supabase) - respostas tratadas com segurança
+# Database helpers (Supabase)
 # ---------------------------
-# Load credentials (env vars take precedence, then Streamlit secrets)
 SUPABASE_URL = os.getenv("SUPABASE_URL") or (st.secrets.get("SUPABASE_URL") if hasattr(st, "secrets") else None)
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or (st.secrets.get("SUPABASE_KEY") if hasattr(st, "secrets") else None)
 
@@ -100,17 +149,14 @@ else:
 
 
 def _resp_error(resp):
-    """Extrai mensagem de erro de forma robusta de um objeto de resposta Supabase/APIResponse."""
     if resp is None:
         return "No response from Supabase"
-    # 1) atributo .error (quando disponível)
     try:
         err_attr = getattr(resp, "error", None)
         if err_attr:
             return err_attr
     except Exception:
         pass
-    # 2) se for mapeável (dict-like), tente resp.get("error")
     try:
         if isinstance(resp, dict) and resp.get("error"):
             return resp.get("error")
@@ -121,7 +167,6 @@ def _resp_error(resp):
                 return err
     except Exception:
         pass
-    # 3) status code não-2xx => informe status e data
     try:
         code = getattr(resp, "status_code", None)
         if code is not None and not (200 <= int(code) < 300):
@@ -129,12 +174,10 @@ def _resp_error(resp):
             return f"status={code}, data={data}"
     except Exception:
         pass
-    # 4) fallback: retornou nada de útil
     return None
 
 
 def _resp_data(resp):
-    """Retorna resp.data de forma segura (ou None)."""
     if resp is None:
         return None
     try:
@@ -147,7 +190,6 @@ def _resp_data(resp):
 
 
 def init_db():
-    # Schema should be created in Supabase SQL Editor (see instructions provided earlier).
     return
 
 
@@ -181,9 +223,6 @@ def add_player(name, position, club, photo_url):
 
 
 def delete_player(player_id: int):
-    """
-    Safe deletion: with FK ON DELETE CASCADE in DB deleting the player is sufficient.
-    """
     if not supabase:
         raise Exception("Supabase não configurado.")
     resp = supabase.table("players").delete().eq("id", player_id).execute()
@@ -217,7 +256,6 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
         raise Exception("Falha ao criar avaliação (resposta vazia)")
     eid = edata[0]["id"]
 
-    # eval_skills
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
@@ -229,7 +267,6 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
         if e:
             raise Exception(e)
 
-    # eval_mog
     rows = [{"evaluation_id": eid, "category": c, "value": int(v)} for c, v in (mog or {}).items()]
     if rows:
         r = supabase.table("eval_mog").insert(rows).execute()
@@ -237,7 +274,6 @@ def save_evaluation(player_id, analyst, eval_date, skills, mog, strengths, impro
         if e:
             raise Exception(e)
 
-    # eval_notes (strengths / improvements)
     rows = []
     for i, t in enumerate(strengths or []):
         if str(t).strip():
@@ -267,7 +303,6 @@ def update_evaluation_meta(evaluation_id: int, analyst: str, eval_date: str):
 def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, strengths: list, improvements: list):
     if not supabase:
         raise Exception("Supabase não configurado.")
-    # Apaga conteúdo antigo
     r = supabase.table("eval_skills").delete().eq("evaluation_id", evaluation_id).execute()
     e = _resp_error(r)
     if e:
@@ -281,7 +316,6 @@ def replace_evaluation_content(evaluation_id: int, skills: dict, mog: dict, stre
     if e:
         raise Exception(e)
 
-    # Inserir novo
     rows = []
     for cat, sd in (skills or {}).items():
         for sn, lv in sd.items():
@@ -325,24 +359,20 @@ def get_latest_evaluation(player_id):
     evs = _resp_data(resp) or []
     if not evs:
         return None
-    # ordenar por eval_date, depois id (desc)
     evs_sorted = sorted(evs, key=lambda x: (x.get("eval_date") or "", x.get("id") or 0), reverse=True)
     ev = evs_sorted[0]
     eid = ev["id"]
 
-    # buscar skills
     skills = {}
     resp = supabase.table("eval_skills").select("category,skill_name,level").eq("evaluation_id", eid).execute()
     for r in (_resp_data(resp) or []):
         skills.setdefault(r["category"], {})[r["skill_name"]] = r["level"]
 
-    # buscar mog
     mog = {}
     resp = supabase.table("eval_mog").select("category,value").eq("evaluation_id", eid).execute()
     for r in (_resp_data(resp) or []):
         mog[r["category"]] = r["value"]
 
-    # buscar notes e ordenar cliente
     strengths = []
     improvements = []
     resp = supabase.table("eval_notes").select("note_type,position,text").eq("evaluation_id", eid).execute()
@@ -357,8 +387,15 @@ def get_latest_evaluation(player_id):
         else:
             improvements.append(r.get("text"))
 
-    return {"id": eid, "analyst": ev.get("analyst"), "eval_date": str(ev.get("eval_date")), "skills": skills, "mog": mog,
-            "strengths": strengths, "improvements": improvements}
+    return {
+        "id": eid,
+        "analyst": ev.get("analyst"),
+        "eval_date": str(ev.get("eval_date")),
+        "skills": skills,
+        "mog": mog,
+        "strengths": strengths,
+        "improvements": improvements,
+    }
 
 
 # ---------------------------
@@ -369,13 +406,10 @@ with st.sidebar.expander("Admin"):
         st.success("🔐 Autenticado como admin")
         if st.button("Logout", use_container_width=True):
             logout_admin()
-            # use safe rerun (try/except inside helper)
             trigger_rerun()
     else:
         pwd = st.text_input("Senha de administrador", type="password")
         if st.button("Entrar", use_container_width=True):
-            # IMPORTANT: do not call trigger_rerun() here — the button click
-            # already causes a rerun; calling the helper can race on some systems.
             if try_login(pwd):
                 st.success("Autenticado com sucesso.")
             else:
@@ -403,7 +437,11 @@ if page == "➕ Cadastrar Jogador":
         c1, c2 = st.columns(2)
         with c1:
             name = st.text_input("Nome completo *")
-            position = st.text_input("Posição", placeholder="Ex: Left Winger")
+            position = st.selectbox(
+                "Posição",
+                POSITIONS,
+                format_func=lambda p: f"{p} – {_pos_label(p)}",
+            )
         with c2:
             club = st.text_input("Clube", placeholder="Ex: Houston Dynamo")
             photo_url = st.text_input("URL da foto")
@@ -432,43 +470,45 @@ elif page == "📝 Nova Avaliação":
     if players_df.empty:
         st.warning("Nenhum jogador cadastrado. Vá em **➕ Cadastrar Jogador**.")
         st.stop()
+
+    # Player and position selectors OUTSIDE the form so skills render dynamically
+    sel_col, pos_col = st.columns(2)
+    with sel_col:
+        player_name = st.selectbox("Jogador", players_df["name"].tolist(), key="eval_player_sel")
+    player_row = players_df[players_df["name"] == player_name].iloc[0]
+    stored_pos = player_row["position"] if player_row["position"] in POSITIONS else POSITIONS[0]
+    with pos_col:
+        eval_position = st.selectbox(
+            "Posição",
+            POSITIONS,
+            index=POSITIONS.index(stored_pos),
+            key="eval_position_sel",
+            format_func=lambda p: f"{p} – {_pos_label(p)}",
+        )
+
+    pos_skills = _pos_skills(eval_position)
+
+    st.divider()
+
     with st.form("form_evaluation"):
-        ca, cb, cc = st.columns(3)
-        with ca:
-            player_name = st.selectbox("Jogador", players_df["name"].tolist())
-        with cb:
+        fa, fb = st.columns(2)
+        with fa:
             analyst = st.text_input("Nome do Analista *")
-        with cc:
+        with fb:
             eval_date = st.date_input("Data", value=date.today())
         st.divider()
 
-        # Technical
-        st.subheader("🎯 Technical")
+        # Technical — position-specific
+        st.subheader(f"🎯 {_section_title(eval_position)}")
         tc = st.columns(4)
         tv = {}
-        for i, s in enumerate(TECHNICAL_SKILLS):
+        for i, s in enumerate(pos_skills):
             with tc[i % 4]:
                 tv[s] = st.selectbox(s, LEVELS, key=f"t_{s}")
 
         st.divider()
 
-        # Player-specific (customizable)
-        st.subheader("⚡ Player-Specific Indicators")
-        st.caption("Digite o nome do atributo e escolha a classificação. Deixe em branco para ignorar.")
-        ps = {}
-        pn = st.columns(4)
-        pl = st.columns(4)
-        for i in range(4):
-            with pn[i]:
-                an = st.text_input(f"Atributo {i+1}", key=f"psn_{i}", placeholder="Ex: Speed")
-            with pl[i]:
-                al = st.selectbox(f"Nível {i+1}", [""] + LEVELS, key=f"psl_{i}")
-            if an.strip() and al:
-                ps[an.strip()] = al
-
-        st.divider()
-
-        # Mental
+        # Mental — same for all
         st.subheader("🧠 Mental")
         mc = st.columns(4)
         mv = {}
@@ -513,7 +553,7 @@ elif page == "📝 Nova Avaliação":
                         player_id=player_id,
                         analyst=analyst.strip(),
                         eval_date=eval_date.isoformat(),
-                        skills={"technical": tv, "player_specific": ps, "mental": mv},
+                        skills={"technical": tv, "mental": mv},
                         mog=mgv,
                         strengths=[s1, s2, s3],
                         improvements=[i1, i2, i3],
@@ -525,7 +565,7 @@ elif page == "📝 Nova Avaliação":
 
 
 # ---------------------------
-# Page: Jogadores (lista / ações) - Edit card aligned left and protected
+# Page: Jogadores (lista / ações)
 # ---------------------------
 elif page == "📚 Jogadores":
     st.header("Lista de Atletas Cadastrados")
@@ -535,7 +575,7 @@ elif page == "📚 Jogadores":
         st.info("Nenhum jogador cadastrado. Vá em 'Cadastrar Jogador' para adicionar.")
     else:
         display_df = players_df[["id", "name", "position", "club", "photo_url"]].rename(
-            columns={"id": "ID", "name": "Nome", "position": "Posiç��o", "club": "Clube", "photo_url": "Foto URL"}
+            columns={"id": "ID", "name": "Nome", "position": "Posição", "club": "Clube", "photo_url": "Foto URL"}
         )
 
         st.subheader("Tabela de Atletas")
@@ -548,11 +588,12 @@ elif page == "📚 Jogadores":
         sel_row = players_df[players_df["name"] == sel_name].iloc[0]
         evaluation = get_latest_evaluation(int(sel_row["id"]))
 
-        # LEFT: Edit card + actions (aligned with "Ações")
+        # Resolve position for evaluation skill rendering
+        stored_edit_pos = sel_row["position"] if sel_row["position"] in POSITIONS else POSITIONS[0]
+
         left_col, right_col = st.columns([1, 2], gap="large")
 
         with left_col:
-            # If not admin, show a small notice and quick password input to allow login in place
             if not is_admin():
                 st.warning("Para editar/excluir jogadores você precisa estar autenticado como admin.")
                 quick_pwd = st.text_input("Senha de admin (rápido)", type="password", key="quick_admin_pwd")
@@ -561,7 +602,6 @@ elif page == "📚 Jogadores":
                         st.success("Autenticado como admin.")
                     else:
                         st.error("Senha incorreta.")
-                # show basic info but hide edit card
                 st.markdown(f"**Nome:** {sel_row['name']}")
                 st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
                 if sel_row["photo_url"]:
@@ -574,18 +614,29 @@ elif page == "📚 Jogadores":
                         unsafe_allow_html=True,
                     )
             else:
-                # admin: show full edit card (edita TODOS os atributos, inclusive avaliação)
+                # admin: show full edit card
                 st.markdown('<div class="block-container card" style="padding:12px">', unsafe_allow_html=True)
                 st.markdown('### ✏️ Editar jogador')
 
+                # Position selector outside the form so skills render correctly after position change
+                edit_pos_key = f"edit_eval_pos_{sel_row['id']}"
+                if edit_pos_key not in st.session_state:
+                    st.session_state[edit_pos_key] = stored_edit_pos
+                edit_position = st.selectbox(
+                    "Posição (perfil + avaliação)",
+                    POSITIONS,
+                    index=POSITIONS.index(st.session_state[edit_pos_key]),
+                    key=edit_pos_key,
+                    format_func=lambda p: f"{p} – {_pos_label(p)}",
+                )
+                edit_pos_skills = _pos_skills(edit_position)
+
                 with st.form(f"form_edit_{sel_row['id']}"):
-                    # Player basic info
+                    # Player basic info (position stored from selector above)
                     new_name = st.text_input("Nome completo *", value=sel_row["name"])
-                    new_position = st.text_input("Posição", value=sel_row["position"] or "")
                     new_club = st.text_input("Clube", value=sel_row["club"] or "")
                     new_photo = st.text_input("URL da foto", value=sel_row["photo_url"] or "")
 
-                    # Preview da foto (fixa, ajustada com contain)
                     if new_photo.strip():
                         st.markdown(
                             f'''
@@ -599,7 +650,6 @@ elif page == "📚 Jogadores":
                     st.divider()
                     st.markdown("**Avaliação (editar última ou criar nova)**")
 
-                    # Analyst and date (prefill if evaluation exists)
                     if evaluation:
                         analyst_val = evaluation.get("analyst", "")
                         try:
@@ -613,50 +663,35 @@ elif page == "📚 Jogadores":
                     analyst_input = st.text_input("Analista", value=analyst_val)
                     eval_date_input = st.date_input("Data da avaliação", value=eval_date_prefill)
 
-                    st.subheader("🎯 Technical")
+                    # Technical — position-specific
+                    st.subheader(f"🎯 {_section_title(edit_position)}")
                     tech_vals = {}
-                    for i, s in enumerate(TECHNICAL_SKILLS):
+                    for s in edit_pos_skills:
                         cur_val = ""
                         if evaluation and evaluation.get("skills", {}).get("technical", {}):
                             cur_val = evaluation["skills"]["technical"].get(s, "")
-                        tech_vals[s] = st.selectbox(f"{s}", [""] + LEVELS,
-                                                    index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0,
-                                                    key=f"edit_t_{sel_row['id']}_{s}")
+                        tech_vals[s] = st.selectbox(
+                            f"{s}", [""] + LEVELS,
+                            index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0,
+                            key=f"edit_t_{sel_row['id']}_{s}",
+                        )
 
-                    st.subheader("⚡ Player-Specific Indicators (até 4)")
-                    existing_ps = {}
-                    if evaluation and evaluation.get("skills", {}).get("player_specific", {}):
-                        existing_ps = evaluation["skills"]["player_specific"].copy()
-                    ps_items = list(existing_ps.items())
-                    while len(ps_items) < 4:
-                        ps_items.append(("", ""))
-                    ps_names = []
-                    ps_levels = []
-                    for i in range(4):
-                        default_name = ps_items[i][0]
-                        default_level = ps_items[i][1] if ps_items[i][1] in LEVELS else ""
-                        name_key = f"edit_ps_name_{sel_row['id']}_{i}"
-                        level_key = f"edit_ps_level_{sel_row['id']}_{i}"
-                        n = st.text_input(f"Atributo {i+1}", value=default_name or "", key=name_key)
-                        l = st.selectbox(f"Nível {i+1}", [""] + LEVELS,
-                                         index=([""] + LEVELS).index(default_level) if default_level in LEVELS else 0,
-                                         key=level_key)
-                        ps_names.append(n)
-                        ps_levels.append(l)
-
+                    # Mental — same for all
                     st.subheader("🧠 Mental")
                     mental_vals = {}
-                    for i, s in enumerate(MENTAL_SKILLS):
+                    for s in MENTAL_SKILLS:
                         cur_val = ""
                         if evaluation and evaluation.get("skills", {}).get("mental", {}):
                             cur_val = evaluation["skills"]["mental"].get(s, "")
-                        mental_vals[s] = st.selectbox(f"{s}", [""] + LEVELS,
-                                                      index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0,
-                                                      key=f"edit_m_{sel_row['id']}_{s}")
+                        mental_vals[s] = st.selectbox(
+                            f"{s}", [""] + LEVELS,
+                            index=([""] + LEVELS).index(cur_val) if cur_val in LEVELS else 0,
+                            key=f"edit_m_{sel_row['id']}_{s}",
+                        )
 
                     st.subheader("📐 Moments of the Game (MoG)")
                     mog_vals = {}
-                    for i, c in enumerate(MOG_CATEGORIES):
+                    for c in MOG_CATEGORIES:
                         cur_v = 50
                         if evaluation and evaluation.get("mog", {}):
                             try:
@@ -678,45 +713,32 @@ elif page == "📚 Jogadores":
                     i2 = st.text_input("Improvement 2", value=i_pref[1] or "", key=f"edit_i2_{sel_row['id']}")
                     i3 = st.text_input("Improvement 3", value=i_pref[2] or "", key=f"edit_i3_{sel_row['id']}")
 
-                    st.markdown("")  # spacer
+                    st.markdown("")
                     save_clicked = st.form_submit_button("💾 Salvar alterações", use_container_width=True)
 
                     if save_clicked:
-                        # Validation
                         if not new_name.strip():
                             st.error("Nome é obrigatório.")
                         else:
                             try:
-                                # Update player data
-                                update_player(int(sel_row["id"]), new_name, new_position, new_club, new_photo)
+                                update_player(int(sel_row["id"]), new_name, edit_position, new_club, new_photo)
 
-                                # Build payloads
-                                technical_payload = {s: (tech_vals[s] or "").strip() for s in TECHNICAL_SKILLS}
+                                technical_payload = {s: (tech_vals[s] or "").strip() for s in edit_pos_skills}
                                 mental_payload = {s: (mental_vals[s] or "").strip() for s in MENTAL_SKILLS}
-                                ps_payload = {}
-                                for n, l in zip(ps_names, ps_levels):
-                                    if n.strip() and l:
-                                        ps_payload[n.strip()] = l
-
                                 skills_payload = {
                                     "technical": technical_payload,
-                                    "player_specific": ps_payload,
                                     "mental": mental_payload,
                                 }
                                 mog_payload = {c: int(mog_vals[c]) for c in MOG_CATEGORIES}
                                 strengths_payload = [s1, s2, s3]
                                 improvements_payload = [i1, i2, i3]
 
-                                # If evaluation exists -> update meta + replace content
                                 if evaluation:
                                     eval_id = evaluation["id"]
-                                    # update meta
                                     update_evaluation_meta(eval_id, analyst_input.strip() or evaluation.get("analyst", ""), eval_date_input.isoformat())
-                                    # replace content
                                     replace_evaluation_content(eval_id, skills_payload, mog_payload, strengths_payload, improvements_payload)
-                                    st.success(f"✅ Jogador e avaliação atualizados com sucesso!")
+                                    st.success("✅ Jogador e avaliação atualizados com sucesso!")
                                 else:
-                                    # Create new evaluation (analyst required)
                                     if not analyst_input.strip():
                                         st.error("Analista é necessário ao criar nova avaliação.")
                                     else:
@@ -731,7 +753,6 @@ elif page == "📚 Jogadores":
                                             improvements=improvements_payload,
                                         )
                                         st.success("✅ Jogador atualizado e nova avaliação criada!")
-                                # safe rerun after successful save/delete
                                 trigger_rerun()
                             except Exception as e:
                                 msg = str(e).lower()
@@ -741,8 +762,7 @@ elif page == "📚 Jogadores":
                                     st.error(f"Erro ao salvar jogador/avaliação: {e}")
                 st.markdown("</div>", unsafe_allow_html=True)
 
-                # Delete action (protected)
-                st.markdown("")  # spacer
+                st.markdown("")
                 confirm = st.checkbox("Confirmo exclusão deste atleta e todas as avaliações associadas", key=f"confirm_del_{sel_row['id']}")
                 if confirm:
                     if st.button("Confirmar exclusão"):
@@ -753,7 +773,6 @@ elif page == "📚 Jogadores":
                         except Exception as e:
                             st.error(f"Erro ao apagar jogador: {e}")
 
-        # RIGHT: Details / Radar / Meta (visual)
         with right_col:
             st.markdown(f"**Nome:** {sel_row['name']}")
             st.markdown(f"**Posição:** {sel_row['position'] or '—'}  •  **Clube:** {sel_row['club'] or '—'}")
@@ -768,10 +787,9 @@ elif page == "📚 Jogadores":
                 )
 
             if evaluation and evaluation.get("mog"):
-                # reduced spacer (was larger); less gap between title and chart
                 st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-                def build_radar(mog_data):
+                def build_radar_side(mog_data):
                     cats = list(mog_data.keys())
                     vals = list(mog_data.values())
                     if not cats:
@@ -801,14 +819,13 @@ elif page == "📚 Jogadores":
                         paper_bgcolor="rgba(0,0,0,0)",
                         plot_bgcolor="rgba(0,0,0,0)",
                         showlegend=False,
-                        margin=dict(l=40, r=40, t=48, b=40),  # increased top margin to avoid label clipping
-                        height=420,  # slightly taller to give room for labels
+                        margin=dict(l=40, r=40, t=48, b=40),
+                        height=420,
                     )
                     return fig
 
-                # title + chart with tighter spacing and safer margins to avoid label clipping
                 st.markdown('<div class="block-container radar-outer"><div class="radar-title">MoG – Moments of the Game</div><div class="radar-body">', unsafe_allow_html=True)
-                fig = build_radar(evaluation["mog"])
+                fig = build_radar_side(evaluation["mog"])
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
                 st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -828,13 +845,11 @@ else:
         "Below Level": {"bg": "rgba(198,40,40,0.75)", "fg": "#FFFFFF"},
     }
 
-    # Load Google fonts
     st.markdown(
         '<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Source+Sans+3:wght@400;600;700;800&display=swap" rel="stylesheet">',
         unsafe_allow_html=True,
     )
 
-    # CSS template scoped to .block-container to avoid affecting sidebar elements
     _css_template = """
     <style>
     .block-container, .block-container * {
@@ -944,9 +959,8 @@ else:
         border-radius: 12px;
         box-shadow: 0 2px 10px rgba(13,71,161,0.12);
         overflow: hidden;
-        margin-bottom: 8px; /* reduced bottom spacing */
+        margin-bottom: 8px;
     }
-    /* reduced padding to bring chart closer to title */
     .block-container .radar-title {
         background: #0C1F3A;
         color: white;
@@ -956,10 +970,10 @@ else:
         font-weight: 700;
         letter-spacing: 1.5px;
         text-transform: uppercase;
-        padding: 8px 12px 6px 12px; /* smaller top & bottom padding */
+        padding: 8px 12px 6px 12px;
         margin-bottom: 0;
     }
-    .block-container .radar-body { background: #0C1F3A; padding: 0 8px 12px 8px; } /* small bottom padding */
+    .block-container .radar-body { background: #0C1F3A; padding: 0 8px 12px 8px; }
     .block-container .radar-body > div { margin: 0 !important; padding: 0 !important; }
 
     .block-container .badge-table {
@@ -1049,7 +1063,6 @@ else:
     _css = _css_template.replace("__FD__", FONT_DISPLAY).replace("__FG__", FONT_GRAPHIC).replace("__FDO__", FONT_DOCUMENT)
     st.markdown(_css, unsafe_allow_html=True)
 
-    # Helpers reused in dashboard
     def badge_tag(level):
         if not level:
             return ""
@@ -1060,7 +1073,6 @@ else:
         return f'<div class="section"><div class="section-header">{title}</div><div class="section-body">{body}</div></div>'
 
     def render_badges_table(items: list, cols: int = 4, tag_px: int = 110) -> str:
-        # pad to multiple of cols
         if len(items) % cols != 0:
             remaining = cols - (len(items) % cols)
             items = items + [("", "")] * remaining
@@ -1089,8 +1101,7 @@ else:
                     cells += "<td></td><td></td>"
             rows_html += f"<tr>{cells}</tr>"
 
-        table_html = f'<table class="badge-table">{colgroup_html}{rows_html}</table>'
-        return table_html
+        return f'<table class="badge-table">{colgroup_html}{rows_html}</table>'
 
     def render_list(items):
         if not items:
@@ -1102,7 +1113,7 @@ else:
 
     def build_radar(mog_data):
         cats = list(mog_data.keys())
-        vals = list(mog_data.values()) if mog_data else [50]*len(cats)
+        vals = list(mog_data.values()) if mog_data else [50] * len(cats)
         if not cats:
             return go.Figure()
         cats_c = cats + [cats[0]]
@@ -1135,7 +1146,7 @@ else:
         )
         return fig
 
-    # Header (use f-string to avoid messy concatenation)
+    # Header
     st.markdown(f'''
         <div class="block-container header-bar">
             <img src="{LOGO_SRC}" alt="SGA Logo" class="header-logo">
@@ -1153,10 +1164,15 @@ else:
     pr = players_df[players_df["name"] == player_name].iloc[0]
     evaluation = get_latest_evaluation(int(pr["id"]))
 
+    # Resolve player's position for skill rendering
+    dash_pos = pr["position"] if pr["position"] in POSITIONS else None
+    dash_skills = _pos_skills(dash_pos) if dash_pos else []
+
     left_col, right_col = st.columns([1, 3], gap="large")
 
     with left_col:
         photo = pr["photo_url"] or ""
+        pos_display = pr["position"] or "—"
         if photo:
             st.markdown(
                 f'''
@@ -1165,7 +1181,7 @@ else:
                         <img src="{photo}" alt="{player_name}" style="max-width:100%;max-height:100%;object-fit:contain;display:block;">
                     </div>
                     <div class="divider"></div>
-                    <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
+                    <div class="label">Position</div><div class="value">{pos_display}</div>
                     <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
                 </div>
                 ''',
@@ -1175,7 +1191,7 @@ else:
             st.markdown(f'''
                 <div class="block-container card player-card">
                     <div class="divider"></div>
-                    <div class="label">Position</div><div class="value">{pr["position"] or "—"}</div>
+                    <div class="label">Position</div><div class="value">{pos_display}</div>
                     <div class="label">Club</div><div class="value">{pr["club"] or "—"}</div>
                 </div>
                 ''', unsafe_allow_html=True)
@@ -1198,20 +1214,25 @@ else:
 
         sk = evaluation["skills"]
 
-        # Technical
-        tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in TECHNICAL_SKILLS]
-        st.markdown(render_section("Technical", render_badges_table(tech_items, 4)), unsafe_allow_html=True)
+        # Technical — title reflects the player's position
+        if dash_pos:
+            tech_title = _section_title(dash_pos)
+            tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in dash_skills]
+        else:
+            # Fallback: show whatever is stored under "technical"
+            tech_title = "Technical"
+            stored_tech = sk.get("technical", {})
+            tech_items = [(n, l) for n, l in stored_tech.items()]
 
-        # Player-specific (preserve input order, padded to 4)
-        ps_data = sk.get("player_specific", {})
-        ps_items = [(n, l) for n, l in ps_data.items()]
-        while len(ps_items) < 4:
-            ps_items.append(("", ""))
-        st.markdown(render_section("Player-Specific Indicators", render_badges_table(ps_items, 4)), unsafe_allow_html=True)
+        # Pad to multiple of 4
+        while len(tech_items) % 4 != 0:
+            tech_items.append(("", ""))
+
+        st.markdown(render_section(tech_title, render_badges_table(tech_items, 4)), unsafe_allow_html=True)
 
         # Mental (fixed order, padded)
         m_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
-        while len(m_items) < 4:
+        while len(m_items) % 4 != 0:
             m_items.append(("", ""))
         st.markdown(render_section("Mental", render_badges_table(m_items, 4)), unsafe_allow_html=True)
 
