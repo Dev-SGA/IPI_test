@@ -399,6 +399,297 @@ def get_latest_evaluation(player_id):
 
 
 # ---------------------------
+# PDF Report Generator
+# ---------------------------
+def generate_player_pdf(
+    player_name: str,
+    position: str,
+    club: str,
+    photo_url: str,
+    evaluation: dict,
+    pos_skills_list: list,
+) -> bytes:
+    """Generate a single-page IPI report as PDF bytes using reportlab."""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors as rl_colors
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            SimpleDocTemplate, Table, TableStyle,
+            Paragraph, Spacer, Image as RLImage,
+        )
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    except ImportError:
+        raise ImportError(
+            "reportlab não instalado. Execute: pip install reportlab"
+        )
+    import io as _io
+    import urllib.request as _urlreq
+
+    buf = _io.BytesIO()
+    PAGE_W, _ = A4
+    MAR = 15 * mm
+    CW = PAGE_W - 2 * MAR
+
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MAR, rightMargin=MAR,
+        topMargin=MAR, bottomMargin=MAR,
+    )
+
+    # ── colours ──────────────────────────────────────────────────────────────
+    CD    = rl_colors.HexColor("#0D47A1")
+    CM    = rl_colors.HexColor("#1E88E5")
+    CN    = rl_colors.HexColor("#0C1F3A")
+    CL    = rl_colors.HexColor("#67b6fb")
+    CGREY = rl_colors.HexColor("#ECEFF1")
+    CWHT  = rl_colors.white
+    LVL = {
+        "Above Level": rl_colors.HexColor("#1B5E20"),
+        "Good":        rl_colors.HexColor("#388E3C"),
+        "Average":     rl_colors.HexColor("#E65100"),
+        "Below Level": rl_colors.HexColor("#C62828"),
+    }
+
+    # ── paragraph styles ─────────────────────────────────────────────────────
+    def _ps(nm, fn="Helvetica", fs=8, lh=11, tc=None, al=TA_LEFT):
+        return ParagraphStyle(nm, fontName=fn, fontSize=fs, leading=lh,
+                               textColor=tc or CWHT, alignment=al)
+
+    STITLE = _ps("stitle", "Helvetica-Bold", 15, 18)
+    SSUB   = _ps("ssub",   "Helvetica",       9, 12,
+                 rl_colors.HexColor("#CFD8DC"), TA_RIGHT)
+    SHDR   = _ps("shdr",   "Helvetica-Bold",  8, 11)
+    SLBL   = _ps("slbl",   "Helvetica",        8, 10, al=TA_RIGHT)
+    SBDG   = _ps("sbdg",   "Helvetica-Bold",   7,  9, al=TA_CENTER)
+    SBDGE  = _ps("sbdge",  "Helvetica",        7,  9,
+                 rl_colors.HexColor("#aaaaaa"), TA_CENTER)
+    SDKLBL = _ps("sdklbl", "Helvetica",        7,  9,
+                 rl_colors.HexColor("#78909C"))
+    SDKVAL = _ps("sdkval", "Helvetica-Bold",  10, 13, CD)
+    SMOGC  = _ps("smogc",  "Helvetica-Bold",   8, 11)
+    SMOGV  = _ps("smogv",  "Helvetica-Bold",   8, 11, al=TA_RIGHT)
+    SNOTE  = _ps("snote",  "Helvetica",         9, 12)
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def sec_hdr(title: str):
+        t = Table([[Paragraph(title.upper(), SHDR)]], colWidths=[CW])
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), CD),
+            ("TOPPADDING",    (0, 0), (-1, -1),  5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ]))
+        return t
+
+    def skill_grid(items: list):
+        NCOLS = 2
+        items = list(items)
+        while len(items) % NCOLS:
+            items.append(("", ""))
+        LW = CW / NCOLS * 0.56
+        BW = CW / NCOLS * 0.44
+        cw = [LW, BW] * NCOLS
+        rows = []
+        cmds = [
+            ("BACKGROUND",    (0, 0), (-1, -1), CM),
+            ("TOPPADDING",    (0, 0), (-1, -1),  4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  4),
+            ("LEFTPADDING",   (0, 0), (-1, -1),  6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for ri, row_start in enumerate(range(0, len(items), NCOLS)):
+            chunk = items[row_start: row_start + NCOLS]
+            row = []
+            for ci, (skill, level) in enumerate(chunk):
+                bcol = ci * 2 + 1
+                if skill:
+                    row.append(Paragraph(skill, SLBL))
+                    row.append(Paragraph(level or "—", SBDG if level else SBDGE))
+                    if level in LVL:
+                        cmds.append(("BACKGROUND", (bcol, ri), (bcol, ri), LVL[level]))
+                else:
+                    row.append(Paragraph("", SLBL))
+                    row.append(Paragraph("", SBDGE))
+            rows.append(row)
+        t = Table(rows, colWidths=cw)
+        t.setStyle(TableStyle(cmds))
+        return t
+
+    def notes_tbl(title: str, items: list, w: float):
+        rows = [[Paragraph(title.upper(), SHDR)]]
+        for i, txt in enumerate(items or []):
+            if txt and str(txt).strip():
+                rows.append([Paragraph(f"{i + 1}.  {txt}", SNOTE)])
+        if len(rows) == 1:
+            rows.append([Paragraph("—", SNOTE)])
+        t = Table(rows, colWidths=[w])
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (0, 0),  CD),
+            ("BACKGROUND",    (0, 1), (0, -1), CM),
+            ("TOPPADDING",    (0, 0), (-1, -1),  5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+        ]))
+        return t
+
+    # ── build story ───────────────────────────────────────────────────────────
+    story = []
+    sk = (evaluation or {}).get("skills", {})
+
+    # Header bar
+    hdr = Table(
+        [[Paragraph(player_name, STITLE),
+          Paragraph(f"{position or '—'} • {club or '—'}", SSUB)]],
+        colWidths=[CW * 0.62, CW * 0.38],
+    )
+    hdr.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), CD),
+        ("TOPPADDING",    (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING",   (0, 0), (0, -1),  14),
+        ("RIGHTPADDING",  (1, 0), (1, -1),  14),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(hdr)
+    story.append(Spacer(1, 3 * mm))
+
+    # Info card (photo + analyst/date)
+    analyst_val   = (evaluation or {}).get("analyst", "—")
+    eval_date_val = (evaluation or {}).get("eval_date", "—")
+
+    photo_img = None
+    if photo_url:
+        try:
+            req = _urlreq.Request(photo_url, headers={"User-Agent": "Mozilla/5.0"})
+            raw = _urlreq.urlopen(req, timeout=4).read()
+            photo_img = RLImage(_io.BytesIO(raw), width=26 * mm, height=35 * mm)
+        except Exception:
+            pass
+
+    info_w   = CW - (30 * mm if photo_img else 0)
+    info_row = [
+        Paragraph("ANALYST",          SDKLBL),
+        Paragraph(str(analyst_val),   SDKVAL),
+        Paragraph("DATE",             SDKLBL),
+        Paragraph(str(eval_date_val), SDKVAL),
+    ]
+    info_t = Table([info_row], colWidths=[info_w / 4] * 4)
+    info_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), CGREY),
+        ("TOPPADDING",    (0, 0), (-1, -1),  8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1),  8),
+        ("LEFTPADDING",   (0, 0), (-1, -1),  8),
+        ("RIGHTPADDING",  (0, 0), (-1, -1),  8),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    if photo_img:
+        card = Table([[photo_img, info_t]], colWidths=[30 * mm, CW - 30 * mm])
+        card.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), CGREY),
+            ("TOPPADDING",    (0, 0), (-1, -1),  6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
+            ("LEFTPADDING",   (0, 0), (-1, -1),  6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.append(card)
+    else:
+        story.append(info_t)
+    story.append(Spacer(1, 3 * mm))
+
+    # Technical
+    pos_code   = position if position in POSITIONS else None
+    tskills    = pos_skills_list if pos_code else list(sk.get("technical", {}).keys())
+    t_title    = (f"{pos_code} – {POSITION_LABELS.get(pos_code, pos_code)}"
+                  if pos_code else "Technical")
+    tech_items = [(s, sk.get("technical", {}).get(s, "")) for s in tskills]
+    story.append(sec_hdr(t_title))
+    story.append(skill_grid(tech_items) if tech_items else Spacer(1, 2 * mm))
+    story.append(Spacer(1, 3 * mm))
+
+    # Player-Specific
+    ps_dict = sk.get("player_specific", {})
+    if ps_dict:
+        story.append(sec_hdr("Player-Specific Indicators"))
+        story.append(skill_grid(list(ps_dict.items())))
+        story.append(Spacer(1, 3 * mm))
+
+    # Mental
+    mental_items = [(s, sk.get("mental", {}).get(s, "")) for s in MENTAL_SKILLS]
+    story.append(sec_hdr("Mental"))
+    story.append(skill_grid(mental_items))
+    story.append(Spacer(1, 3 * mm))
+
+    # MoG
+    mog_data = (evaluation or {}).get("mog", {})
+    if mog_data:
+        story.append(sec_hdr("Moments of the Game (MoG)"))
+        BAR_W = CW - 55 * mm - 12 * mm
+        mog_rows = []
+        mog_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, -1), CN),
+            ("TOPPADDING",    (0, 0), (-1, -1),  5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        mog_list = list(mog_data.items())
+        for ri, (cat, raw) in enumerate(mog_list):
+            try:
+                v = max(0, min(100, int(raw)))
+            except Exception:
+                v = 0
+            filled = max(1, int(BAR_W * v / 100))
+            empty  = max(1, int(BAR_W - filled))
+            bar = Table([["", ""]], colWidths=[filled, empty])
+            bar.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (0, 0), CL),
+                ("BACKGROUND",    (1, 0), (1, 0), rl_colors.HexColor("#1a3a5c")),
+                ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+            ]))
+            mog_rows.append([Paragraph(cat, SMOGC), Paragraph(str(v), SMOGV), bar])
+            if ri < len(mog_list) - 1:
+                mog_cmds.append(
+                    ("LINEBELOW", (0, ri), (-1, ri), 0.5, rl_colors.HexColor("#1a3a5c"))
+                )
+        mog_t = Table(mog_rows, colWidths=[55 * mm, 12 * mm, BAR_W])
+        mog_t.setStyle(TableStyle(mog_cmds))
+        story.append(mog_t)
+        story.append(Spacer(1, 3 * mm))
+
+    # Strengths / Improvements
+    strengths    = (evaluation or {}).get("strengths", [])
+    improvements = (evaluation or {}).get("improvements", [])
+    half = (CW - 3 * mm) / 2
+    si = Table(
+        [[notes_tbl("My Strengths",   strengths,    half),
+          notes_tbl("Need to Improve", improvements, half)]],
+        colWidths=[half + 1.5 * mm, half + 1.5 * mm],
+    )
+    si.setStyle(TableStyle([
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(si)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+
+# ---------------------------
 # UI: Sidebar Admin area
 # ---------------------------
 with st.sidebar.expander("Admin"):
@@ -1294,3 +1585,35 @@ else:
             f'<div class="block-container eval-meta">📅 <b>Avaliação:</b> {evaluation["eval_date"]} &nbsp;•&nbsp; 👤 <b>Analista:</b> {evaluation["analyst"]}</div>',
             unsafe_allow_html=True,
         )
+
+        # PDF export button
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        pdf_key = f"pdf_bytes_{player_name}"
+        if st.button("📄 Gerar Relatório PDF", use_container_width=True, key="btn_gen_pdf"):
+            with st.spinner("Gerando PDF..."):
+                try:
+                    pdf_bytes = generate_player_pdf(
+                        player_name=player_name,
+                        position=pr["position"] or "",
+                        club=pr["club"] or "",
+                        photo_url=pr["photo_url"] or "",
+                        evaluation=evaluation,
+                        pos_skills_list=dash_skills,
+                    )
+                    st.session_state[pdf_key] = pdf_bytes
+                except ImportError as exc:
+                    st.warning(f"⚠️ {exc}")
+                    st.session_state.pop(pdf_key, None)
+                except Exception as exc:
+                    st.error(f"Erro ao gerar PDF: {exc}")
+                    st.session_state.pop(pdf_key, None)
+        if pdf_key in st.session_state:
+            fname = f"IPI_{player_name.replace(' ', '_')}.pdf"
+            st.download_button(
+                label="⬇️ Baixar PDF",
+                data=st.session_state[pdf_key],
+                file_name=fname,
+                mime="application/pdf",
+                use_container_width=True,
+                key="btn_dl_pdf",
+            )
